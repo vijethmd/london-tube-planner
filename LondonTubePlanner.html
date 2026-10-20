@@ -1,0 +1,2192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>London Tube — Journey Planner</title>
+<meta name="description" content="Step-by-step London Underground and Elizabeth line directions — lines, platforms, changes and fares." />
+<meta name="theme-color" content="#17140F" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2317140F'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23E32017' stroke-width='4'/%3E%3Crect x='4' y='13.5' width='24' height='5' rx='1' fill='%23003688'/%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  /* Surfaces — warm paper, not yellow */
+  --cream:    #F6F3EE;
+  --cream2:   #EFEBE4;
+  --cream3:   #E6E0D6;
+  --parchment:#D8D0C2;
+  --surface:  #FFFFFF;
+  /* Ink */
+  --ink:      #17140F;
+  --ink2:     #3A342B;
+  --ink3:     #6A6156;
+  --ink4:     #9A9186;
+  --rule:     rgba(23,20,15,.11);
+  --rule-strong: rgba(23,20,15,.18);
+  /* Accent — a quiet TfL blue; line colours come from the data */
+  --ai:       #23408E;
+  --ai-l:     #4462B0;
+  --ai-bg:    #EEF1F9;
+  --green:    #16743A;
+  --green-l:  #23934C;
+  --green-bg: #EAF5EE;
+  --amber:    #8A5D00;
+  --amber-l:  #C08A0E;
+  --amber-bg: #FCF4E0;
+  --red:      #B3352E;
+  --red-bg:   #FCEDEC;
+  --gold:     #E9C46A;
+  /* Depth — layered, low-opacity shadows read as light, not smudge */
+  --shadow-sm: 0 1px 1px rgba(23,20,15,.04), 0 1px 3px rgba(23,20,15,.06);
+  --shadow:    0 1px 1px rgba(23,20,15,.03), 0 4px 8px rgba(23,20,15,.04), 0 12px 24px -6px rgba(23,20,15,.08);
+  --shadow-lg: 0 2px 4px rgba(23,20,15,.04), 0 12px 24px rgba(23,20,15,.06), 0 32px 64px -12px rgba(23,20,15,.16);
+  --ring:      0 0 0 4px rgba(35,64,142,.12);
+  --radius: 16px; --radius-sm: 10px; --radius-xs: 7px;
+  /* Motion */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --header-h: 60px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--cream);color:var(--ink);min-height:100vh;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;}
+button{font:inherit;color:inherit;-webkit-tap-highlight-color:transparent;}
+::selection{background:rgba(35,64,142,.16);}
+:focus-visible{outline:2px solid var(--ai-l);outline-offset:2px;}
+::-webkit-scrollbar{width:8px;height:8px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--parchment);border-radius:8px;border:2px solid var(--cream);}
+.tnum{font-variant-numeric:tabular-nums;}
+
+/* LINE BADGE — a pill in the line's colour with a short name, as on TfL line diagrams */
+.sym{--c:#999;--t:#fff;display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:19px;padding:0 6px;border-radius:5px;background:var(--c);color:var(--t);font-size:9.5px;font-weight:700;letter-spacing:.04em;line-height:1;flex-shrink:0;text-transform:uppercase;white-space:nowrap;}
+.sym.sm{min-width:24px;height:15px;padding:0 4px;font-size:8px;border-radius:4px;}
+.sym.lg{min-width:40px;height:26px;padding:0 8px;font-size:11px;border-radius:6px;}
+.syms{display:inline-flex;gap:3px;flex-wrap:wrap;align-items:center;}
+
+/* HEADER */
+header{background:rgba(23,20,15,.96);-webkit-backdrop-filter:saturate(1.4) blur(12px);backdrop-filter:saturate(1.4) blur(12px);color:var(--cream);padding:0 1.75rem;height:var(--header-h);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;position:sticky;top:0;z-index:500;box-shadow:inset 0 -1px 0 rgba(255,255,255,.06);}
+.logo{display:flex;align-items:center;gap:12px;cursor:pointer;justify-self:start;border-radius:10px;}
+.logo-mark{width:34px;height:34px;background:linear-gradient(180deg,#FBF8F3,#E9E3D8);border-radius:9px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.8),0 1px 2px rgba(0,0,0,.4);}
+.logo-mark svg{width:22px;height:22px;}
+.logo-text{font-family:'EB Garamond',serif;font-size:1.22rem;font-weight:500;letter-spacing:.005em;line-height:1.1;display:block;}
+.logo-sub{font-size:.6rem;color:rgba(246,243,238,.42);letter-spacing:.14em;text-transform:uppercase;display:block;margin-top:1px;}
+.header-nav{display:flex;gap:2px;padding:3px;background:rgba(255,255,255,.05);border-radius:12px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);}
+.header-btn{padding:7px 15px;border:none;border-radius:9px;background:transparent;color:rgba(246,243,238,.58);font-size:.8rem;font-weight:500;cursor:pointer;letter-spacing:.01em;transition:color .2s ease,background-color .2s ease,transform .16s var(--ease-out);}
+.header-btn:active{transform:scale(.97);}
+.header-btn.active{background:rgba(255,255,255,.12);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.08);}
+@media (hover:hover) and (pointer:fine){.header-btn:not(.active):hover{color:var(--cream);background:rgba(255,255,255,.06);}}
+.live-badge{justify-self:end;display:flex;align-items:center;gap:8px;font-size:.72rem;font-weight:500;color:#7FD3A0;letter-spacing:.02em;padding:6px 11px 6px 9px;border-radius:999px;background:rgba(78,184,122,.1);box-shadow:inset 0 0 0 1px rgba(78,184,122,.18);}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#4EB87A;position:relative;}
+.live-dot::after{content:'';position:absolute;inset:0;border-radius:50%;background:#4EB87A;animation:pulse 2.4s var(--ease-out) infinite;}
+.live-badge.night{color:#E9C46A;background:rgba(233,196,106,.1);box-shadow:inset 0 0 0 1px rgba(233,196,106,.2);}
+.live-badge.night .live-dot,.live-badge.night .live-dot::after{background:#E9C46A;}
+.live-badge.night .live-dot::after{animation:none;}
+@keyframes pulse{0%{transform:scale(1);opacity:.6}70%,100%{transform:scale(2.6);opacity:0}}
+
+/* MOBILE TAB BAR */
+.tabbar{display:none;}
+
+/* PAGES */
+.page{display:none;}
+.page.active{display:block;animation:pageIn .35s var(--ease-out);}
+@keyframes pageIn{from{opacity:0}to{opacity:1}}
+
+/* PLANNER LAYOUT */
+.planner-layout{display:grid;grid-template-columns:448px 1fr;height:calc(100vh - var(--header-h));}
+.sidebar{background:var(--cream);box-shadow:1px 0 0 var(--rule);overflow-y:auto;display:flex;flex-direction:column;position:relative;z-index:2;}
+.sidebar-header{padding:1.75rem 1.75rem 0;}
+.sidebar-title{font-family:'EB Garamond',serif;font-size:1.75rem;font-weight:400;color:var(--ink);letter-spacing:-.01em;line-height:1.1;margin-bottom:4px;}
+.sidebar-sub{font-size:.68rem;color:var(--ink4);letter-spacing:.12em;text-transform:uppercase;font-weight:500;}
+.form-body{margin:1.25rem 1.25rem 0;padding:1.25rem;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow),0 0 0 1px var(--rule);}
+
+/* FIELD LABELS */
+.field-label{display:flex;align-items:center;gap:8px;font-size:.66rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px;}
+.label-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px var(--surface),0 0 0 4px currentColor;}
+.label-dot.from{background:var(--green);color:rgba(22,116,58,.25);}
+.label-dot.to{background:var(--ai);color:rgba(35,64,142,.25);}
+
+/* MODE TOGGLE */
+.mode-toggle{display:flex;background:var(--cream2);border-radius:var(--radius-sm);padding:3px;margin-bottom:10px;gap:3px;box-shadow:inset 0 1px 2px rgba(23,20,15,.05);}
+.mode-btn{flex:1;height:36px;padding:0 10px;border:none;border-radius:8px;background:transparent;font-size:.8rem;font-weight:500;color:var(--ink3);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:color .2s ease,background-color .2s ease,box-shadow .2s ease,transform .16s var(--ease-out);}
+.mode-btn:active{transform:scale(.97);}
+.mode-btn.active{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(23,20,15,.08),0 0 0 1px rgba(23,20,15,.05);}
+@media (hover:hover) and (pointer:fine){.mode-btn:not(.active):hover{color:var(--ink);}}
+.mode-btn svg{width:14px;height:14px;flex-shrink:0;}
+
+/* GPS BUTTON */
+.gps-btn{width:100%;min-height:46px;padding:0 16px;background:var(--green-bg);border:none;box-shadow:inset 0 0 0 1px rgba(22,116,58,.18);border-radius:var(--radius-sm);color:var(--green);font-size:.875rem;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:10px;text-align:left;transition:background-color .2s ease,box-shadow .2s ease,transform .16s var(--ease-out);}
+@media (hover:hover) and (pointer:fine){.gps-btn:hover{background:#DFF0E5;box-shadow:inset 0 0 0 1px rgba(22,116,58,.3);}}
+.gps-btn:active{transform:scale(.985);}
+.gps-btn:disabled{opacity:.6;cursor:progress;transform:none;}
+.gps-btn svg{width:18px;height:18px;flex-shrink:0;}
+.gps-status{margin-top:8px;padding:9px 12px;border-radius:var(--radius-xs);font-size:.78rem;line-height:1.45;display:none;align-items:center;gap:8px;animation:fadeUp .25s var(--ease-out);}
+.gps-status.loading{background:var(--cream2);color:var(--ink3);display:flex;}
+.gps-status.success{background:var(--green-bg);color:var(--green);display:flex;}
+.gps-status.error{background:var(--red-bg);color:var(--red);display:flex;}
+
+/* INPUTS */
+.addr-wrap,.stn-wrap{position:relative;}
+.address-input,.stn-input{width:100%;height:46px;padding:0 14px 0 40px;background:var(--surface) no-repeat 14px 50%/16px;border:none;box-shadow:inset 0 0 0 1px var(--rule-strong);border-radius:var(--radius-sm);font-family:inherit;font-size:.92rem;color:var(--ink);outline:none;transition:box-shadow .2s ease;text-overflow:ellipsis;}
+.address-input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%239A9186' stroke-width='1.5'%3E%3Cpath d='M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5S12.5 9.5 12.5 6C12.5 3.5 10.5 1.5 8 1.5z'/%3E%3Ccircle cx='8' cy='6' r='1.5'/%3E%3C/svg%3E");}
+.stn-input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%239A9186' stroke-width='1.5'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='M10.5 10.5 14 14' stroke-linecap='round'/%3E%3C/svg%3E");}
+@media (hover:hover) and (pointer:fine){.address-input:hover,.stn-input:hover{box-shadow:inset 0 0 0 1px rgba(23,20,15,.28);}}
+.address-input:focus,.stn-input:focus{box-shadow:inset 0 0 0 1.5px var(--ai-l),var(--ring);}
+.address-input.ok{box-shadow:inset 0 0 0 1.5px var(--green-l),0 0 0 4px rgba(35,147,76,.12);}
+.address-input::placeholder,.stn-input::placeholder{color:var(--ink4);}
+.search-hint{font-size:.72rem;color:var(--ink4);margin-top:7px;padding:0 2px;}
+.addr-resolving{font-size:.74rem;color:var(--green);margin-top:6px;display:none;}
+.addr-resolving.err{color:var(--red);}
+
+/* AUTOCOMPLETE */
+.autocomplete{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface);border-radius:12px;box-shadow:var(--shadow-lg),0 0 0 1px var(--rule);z-index:300;max-height:320px;overflow-y:auto;display:none;padding:5px;transform-origin:top center;animation:popIn .18s var(--ease-out);}
+@keyframes popIn{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+.addr-ac{max-height:min(420px,60vh);}
+.ac-item{padding:9px 11px;cursor:pointer;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;transition:background-color .12s ease;}
+.ac-item+.ac-item{margin-top:1px;}
+.ac-item.kb,.ac-item:active{background:var(--cream2);}
+@media (hover:hover) and (pointer:fine){.ac-item:hover{background:var(--cream2);}}
+.ac-name{font-size:.88rem;color:var(--ink);line-height:1.35;min-width:0;}
+.ac-name mark{background:none;color:inherit;font-weight:600;}
+.ac-name small{display:block;font-size:.74rem;color:var(--ink4);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ac-empty{padding:12px;font-size:.82rem;color:var(--ink4);cursor:default;}
+.ac-head{padding:8px 11px 4px;font-size:.6rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);}
+.ac-meta{display:flex;gap:3px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;max-width:50%;}
+.lc{--c:#999;font-size:.6rem;font-weight:600;letter-spacing:.04em;padding:3px 7px;border-radius:999px;text-transform:uppercase;line-height:1;background:color-mix(in srgb,var(--c) 14%,#fff);color:color-mix(in srgb,var(--c) 70%,#000);}
+.ic-tag{font-size:.6rem;font-weight:500;color:var(--ink3);padding:3px 7px;background:var(--cream2);border-radius:999px;line-height:1;}
+
+/* DIVIDER + SWAP */
+.form-div{display:flex;align-items:center;gap:10px;margin:12px 0;}
+.div-rule{flex:1;height:1px;background:var(--rule);}
+.swap-btn{width:34px;height:34px;border-radius:50%;border:none;background:var(--surface);color:var(--ink3);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm),0 0 0 1px var(--rule);transition:transform .35s var(--ease-out),color .2s ease,box-shadow .2s ease;}
+@media (hover:hover) and (pointer:fine){.swap-btn:hover{color:var(--ink);box-shadow:var(--shadow),0 0 0 1px var(--rule-strong);}}
+.swap-btn:active{transform:rotate(180deg) scale(.94);}
+
+/* PLAN BUTTON */
+.plan-btn{width:100%;margin-top:1.25rem;height:50px;background:linear-gradient(180deg,#2A251E,var(--ink));color:#FBF9F5;border:none;border-radius:12px;font-size:.92rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;letter-spacing:.01em;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 1px 2px rgba(23,20,15,.3),0 6px 16px -4px rgba(23,20,15,.35);transition:transform .16s var(--ease-out),box-shadow .2s ease,opacity .2s ease;}
+.plan-btn svg{width:16px;height:16px;transition:transform .25s var(--ease-out);}
+@media (hover:hover) and (pointer:fine){.plan-btn:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 1px 2px rgba(23,20,15,.3),0 10px 24px -6px rgba(23,20,15,.45);}.plan-btn:hover svg{transform:translateX(2px);}}
+.plan-btn:active{transform:scale(.98);}
+.plan-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+
+/* ERROR */
+.err-msg{margin-top:12px;padding:11px 14px;background:var(--red-bg);box-shadow:inset 0 0 0 1px rgba(179,53,46,.16);border-radius:var(--radius-sm);font-size:.82rem;line-height:1.45;color:var(--red);display:none;animation:fadeUp .25s var(--ease-out);}
+.err-msg.info{background:var(--ai-bg);color:var(--ai);box-shadow:inset 0 0 0 1px rgba(35,64,142,.16);}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* RESULT */
+.result-wrap{padding-bottom:1rem;}
+.result-wrap>*{animation:fadeUp .4s var(--ease-out) both;}
+.result-wrap>*:nth-child(2){animation-delay:60ms;}
+
+/* SUMMARY CARD */
+.summary-card{margin:1.25rem 1.25rem 0;background:radial-gradient(120% 140% at 100% 0%,#2B2620 0%,var(--ink) 60%);color:var(--cream);border-radius:var(--radius);padding:1.25rem 1.25rem 1.1rem;position:relative;overflow:hidden;box-shadow:var(--shadow-lg),inset 0 1px 0 rgba(255,255,255,.06);}
+.summary-card::before{content:'';position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,#E32017,#FFD300 25%,#00782A 50%,#003688 75%,#6950A1);opacity:.9;}
+.summary-route{display:flex;align-items:center;gap:10px;margin-bottom:1.1rem;font-family:'EB Garamond',serif;font-size:1.15rem;line-height:1.25;color:rgba(246,243,238,.6);flex-wrap:wrap;}
+.summary-route strong{color:#fff;font-weight:500;}
+.r-arrow{color:rgba(246,243,238,.3);font-family:'DM Sans',sans-serif;font-size:.9rem;}
+.summary-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:rgba(255,255,255,.07);border-radius:10px;overflow:hidden;}
+.stat{text-align:left;padding:10px 12px;background:rgba(23,20,15,.6);}
+.stat-val{font-size:1.45rem;font-weight:500;color:#fff;display:block;line-height:1.1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+.stat-lbl{font-size:.6rem;color:rgba(246,243,238,.45);text-transform:uppercase;letter-spacing:.1em;margin-top:3px;display:block;font-weight:500;}
+.fare-line{margin-top:12px;font-size:.74rem;line-height:1.5;color:rgba(246,243,238,.55);}
+.night-note{margin-top:12px;padding:9px 12px;border-radius:10px;font-size:.78rem;line-height:1.45;color:#F2D58C;background:rgba(233,196,106,.08);box-shadow:inset 0 0 0 1px rgba(233,196,106,.18);}
+
+/* STEPS */
+.steps-section{margin:1rem 1.25rem 1.5rem;padding:1.25rem 1.25rem .25rem;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow),0 0 0 1px var(--rule);}
+.steps-heading{font-family:'EB Garamond',serif;font-size:1.1rem;font-weight:400;color:var(--ink2);font-style:italic;margin-bottom:1rem;}
+.step-row{display:flex;position:relative;}
+.step-line-col{width:28px;display:flex;flex-direction:column;align-items:center;flex-shrink:0;}
+.step-dot{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;z-index:1;border:1.5px solid;position:relative;background:var(--surface);}
+.step-dot.walk{border-color:var(--parchment);color:var(--ink3);}
+.step-dot.board{border-color:var(--c,var(--ink));color:var(--ink);box-shadow:0 0 0 3px var(--cream2);border-width:2px;}
+.step-dot.transfer{background:var(--amber-bg);border-color:var(--amber-l);color:var(--amber);box-shadow:0 0 0 3px rgba(192,138,14,.12);}
+.step-dot.arrive{background:var(--ink);border-color:var(--ink);color:#fff;box-shadow:0 0 0 3px var(--cream2);}
+.step-dot svg{width:13px;height:13px;}
+.step-track{width:3px;border-radius:3px;flex:1;min-height:18px;margin:3px auto;}
+.step-track.line{width:4px;background:var(--c);}
+.step-track.dashed{width:2px;background:repeating-linear-gradient(to bottom,var(--parchment) 0,var(--parchment) 3px,transparent 3px,transparent 7px);}
+.step-track.solid{width:2px;background:var(--cream3);}
+.step-body{flex:1;padding:1px 0 22px 14px;min-width:0;}
+.step-tag{font-size:.6rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:3px;}
+.step-main{font-size:.94rem;font-weight:500;color:var(--ink);line-height:1.35;margin-bottom:3px;letter-spacing:-.005em;}
+.step-detail{font-size:.8rem;color:var(--ink3);line-height:1.45;}
+.maps-link{display:inline-flex;align-items:center;gap:5px;margin-top:8px;font-size:.76rem;font-weight:500;color:var(--ai);text-decoration:none;padding:4px 9px 4px 8px;border-radius:8px;background:var(--ai-bg);transition:background-color .15s ease;}
+.maps-link svg{width:12px;height:12px;}
+@media (hover:hover) and (pointer:fine){.maps-link:hover{background:#E1E6F4;}}
+
+/* DIRECTION BADGE — London platforms are signed by direction, trains by destination */
+.platform-badge{--c:#999;display:inline-flex;align-items:center;gap:9px;margin-top:10px;padding:6px 12px 6px 6px;border-radius:12px;font-size:.78rem;font-weight:500;max-width:100%;background:color-mix(in srgb,var(--c) 9%,#fff);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 32%,transparent);color:var(--ink);}
+.plat-div{width:1px;height:16px;background:currentColor;opacity:.2;flex-shrink:0;}
+.plat-dir{font-size:.84rem;font-weight:600;line-height:1.3;min-width:0;text-wrap:pretty;}
+.plat-label{font-size:.62rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);white-space:nowrap;}
+.through-note{font-size:.72rem;color:var(--ink4);margin-top:6px;line-height:1.45;}
+
+/* TRANSFER BOX */
+.transfer-box{margin-top:10px;padding:11px 13px;background:var(--amber-bg);box-shadow:inset 3px 0 0 var(--amber-l),inset 0 0 0 1px rgba(138,93,0,.14);border-radius:10px;font-size:.8rem;}
+.transfer-title{font-weight:600;color:var(--amber);margin-bottom:3px;font-size:.66rem;text-transform:uppercase;letter-spacing:.1em;}
+.transfer-inst{color:var(--ink2);line-height:1.6;}
+.transfer-inst .sym{vertical-align:middle;margin:-2px 2px 0;}
+.transfer-gate{margin-top:6px;color:var(--ink3);font-size:.76rem;line-height:1.5;}
+
+/* MAP */
+.map-col{position:relative;background:#EEECE8;}
+#main-map{width:100%;height:calc(100vh - var(--header-h));}
+.map-legend,.map-overlay{position:absolute;z-index:400;background:rgba(255,255,255,.88);-webkit-backdrop-filter:saturate(1.6) blur(14px);backdrop-filter:saturate(1.6) blur(14px);border-radius:14px;box-shadow:var(--shadow-lg),0 0 0 1px var(--rule);}
+.map-legend{bottom:24px;left:20px;padding:12px 14px;transition:opacity .2s ease;}
+/* A drawn route carries its own line names; the legend would only cover it. */
+.has-route .map-legend{opacity:0;pointer-events:none;}
+.legend-title{font-size:.6rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-bottom:9px;}
+.legend-grid{display:grid;grid-template-columns:auto auto;gap:6px 16px;}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:.76rem;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.legend-item .n{color:var(--ink4);margin-left:auto;padding-left:8px;}
+.legend-sub{font-size:.6rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin:12px 0 7px;}
+.legend-sub:first-of-type{margin-top:0;}
+.legend-list{display:grid;gap:6px;}
+
+/* HOME PAGE */
+.home-page{min-height:calc(100vh - var(--header-h));display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);}
+.home-left{background:var(--cream);padding:4.5rem clamp(2rem,5vw,5rem);display:flex;flex-direction:column;justify-content:center;position:relative;}
+.home-left>*{max-width:460px;}
+.home-left>*{animation:fadeUp .6s var(--ease-out) both;}
+.home-left>*:nth-child(2){animation-delay:60ms;}
+.home-left>*:nth-child(3){animation-delay:120ms;}
+.home-left>*:nth-child(4){animation-delay:180ms;}
+.home-eyebrow{font-size:.66rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--ink4);margin-bottom:1.5rem;display:flex;align-items:center;gap:12px;}
+.home-eyebrow::before{content:'';display:inline-block;width:28px;height:1px;background:var(--ink4);opacity:.5;}
+.home-title{font-family:'EB Garamond',serif;font-size:clamp(2.6rem,4.6vw,4rem);font-weight:400;line-height:1.02;letter-spacing:-.025em;color:var(--ink);margin-bottom:1.25rem;}
+.home-title em{font-style:italic;color:var(--ai);}
+.home-desc{font-size:1rem;color:var(--ink3);line-height:1.65;max-width:400px;margin-bottom:2.25rem;text-wrap:pretty;}
+.home-planner{background:var(--surface);border-radius:20px;padding:1.4rem;box-shadow:var(--shadow-lg),0 0 0 1px var(--rule);max-width:440px;}
+.home-planner-label{font-size:.64rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink4);margin-bottom:1rem;}
+.home-right{background:#110F0C;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;padding:clamp(2rem,4vw,3.25rem);isolation:isolate;}
+.home-right::before{content:'';position:absolute;inset:0;background:radial-gradient(60% 50% at 60% 40%,rgba(227,32,23,.10),transparent 70%),radial-gradient(40% 40% at 30% 70%,rgba(0,54,136,.16),transparent 70%);z-index:-1;}
+.net-bg{position:absolute;inset:0 0 34% 0;display:flex;align-items:center;justify-content:center;z-index:-1;padding:3rem 2.5rem 0;}
+.net-bg svg{width:100%;height:100%;overflow:visible;}
+.net-line{fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw 2.2s var(--ease-in-out) forwards;}
+.net-glow{fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.16;filter:blur(6px);}
+.net-stn{fill:#110F0C;opacity:0;animation:fadeIn .6s ease forwards;}
+.net-ic{fill:#F6F3EE;stroke:#110F0C;opacity:0;animation:fadeIn .6s ease forwards;}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fadeIn{to{opacity:1}}
+.home-stats{position:relative;display:grid;grid-template-columns:repeat(4,1fr);width:100%;background:rgba(255,255,255,.04);border-radius:16px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);}
+.home-stat{padding:1.25rem 1.25rem 1.1rem;}
+.home-stat+.home-stat{box-shadow:inset 1px 0 0 rgba(255,255,255,.07);}
+.hs-num{font-size:clamp(1.5rem,2.2vw,2rem);font-weight:500;color:#fff;display:block;margin-bottom:2px;letter-spacing:-.03em;font-variant-numeric:tabular-nums;}
+.hs-lbl{font-size:.64rem;color:rgba(246,243,238,.42);text-transform:uppercase;letter-spacing:.12em;font-weight:500;}
+.home-tagline{position:relative;font-family:'EB Garamond',serif;font-size:1.25rem;font-style:italic;color:rgba(246,243,238,.5);margin-bottom:1.25rem;}
+.home-legend{position:relative;display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1rem;}
+.home-legend .sym{box-shadow:0 0 0 1px rgba(255,255,255,.16);}
+
+/* METRO MAP PAGE */
+#metro-map-full{width:100%;height:calc(100vh - var(--header-h));background:#EEECE8;}
+.map-overlay{top:20px;left:20px;padding:16px 18px;width:270px;max-height:calc(100% - 40px);overflow-y:auto;}
+.map-overlay summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.map-overlay summary::-webkit-details-marker{display:none;}
+.map-overlay summary::after{content:'';width:7px;height:7px;border-right:1.5px solid var(--ink3);border-bottom:1.5px solid var(--ink3);transform:rotate(45deg) translateY(-2px);transition:transform .2s var(--ease-out);}
+.map-overlay[open] summary::after{transform:rotate(-135deg) translateY(-2px);}
+.map-overlay-title{font-family:'EB Garamond',serif;font-size:1.2rem;color:var(--ink);letter-spacing:-.005em;}
+.map-overlay[open] summary{margin-bottom:12px;}
+.map-overlay-foot{margin-top:12px;padding-top:10px;box-shadow:inset 0 1px 0 var(--rule);font-size:.7rem;color:var(--ink4);line-height:1.5;}
+
+/* LOADING */
+.loading-veil{position:fixed;inset:0;z-index:999;background:rgba(246,243,238,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:none;place-items:center;}
+.loading-veil.show{display:grid;animation:pageIn .2s ease;}
+.loading-card{background:var(--surface);border-radius:var(--radius);padding:2rem 2.5rem;text-align:center;box-shadow:var(--shadow-lg),0 0 0 1px var(--rule);animation:popIn .25s var(--ease-out);}
+.loading-spinner{width:28px;height:28px;border:2.5px solid var(--cream3);border-top-color:var(--ink);border-radius:50%;margin:0 auto .9rem;animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:.875rem;color:var(--ink3);}
+
+/* ABOUT */
+.about-page{max-width:760px;margin:0 auto;padding:4rem 1.5rem 6rem;}
+.about-title{font-family:'EB Garamond',serif;font-size:clamp(2.2rem,4vw,3rem);font-weight:400;letter-spacing:-.02em;line-height:1.05;margin-bottom:1rem;}
+.about-intro{color:var(--ink3);line-height:1.75;font-size:1rem;margin-bottom:3rem;padding-bottom:2.5rem;box-shadow:inset 0 -1px 0 var(--rule);text-wrap:pretty;}
+.about-section{margin-bottom:2.75rem;}
+.about-section-title{font-family:'EB Garamond',serif;font-size:1.4rem;font-weight:400;margin-bottom:1rem;letter-spacing:-.01em;}
+.about-card{background:var(--surface);border-radius:14px;padding:1.25rem 1.4rem;margin-bottom:.75rem;box-shadow:var(--shadow-sm),0 0 0 1px var(--rule);}
+.about-card-title{font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ai);margin-bottom:.45rem;}
+.about-card-body{font-size:.9rem;color:var(--ink2);line-height:1.7;}
+.fare-op{font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin:1.25rem 0 .6rem;}
+.fare-op:first-of-type{margin-top:0;}
+.fare-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);border-radius:10px;overflow:hidden;}
+.fare-grid>div{background:var(--surface);padding:12px 14px;font-size:.78rem;color:var(--ink3);font-variant-numeric:tabular-nums;}
+.fare-grid strong{display:block;font-size:1.15rem;font-weight:600;color:var(--ink);margin-top:2px;letter-spacing:-.01em;}
+.fare-grid small{font-size:.72rem;color:var(--ink4);margin-left:4px;}
+.fare-note{font-size:.82rem;color:var(--ink3);line-height:1.6;margin-top:.9rem;}
+
+/* LEAFLET */
+.leaflet-container{font-family:'DM Sans',sans-serif;background:#EEECE8;}
+.leaflet-popup-content-wrapper{border-radius:12px!important;box-shadow:var(--shadow-lg),0 0 0 1px var(--rule)!important;}
+.leaflet-popup-content{font-family:'DM Sans',sans-serif!important;margin:12px 14px!important;}
+.leaflet-popup-tip{box-shadow:none!important;}
+.leaflet-bar{border:none!important;box-shadow:var(--shadow),0 0 0 1px var(--rule)!important;border-radius:10px!important;overflow:hidden;}
+.leaflet-bar a{color:var(--ink)!important;width:34px!important;height:34px!important;line-height:34px!important;border-bottom-color:var(--rule)!important;}
+.leaflet-control-attribution{background:rgba(255,255,255,.7)!important;border-radius:6px 0 0 0;font-size:10px!important;}
+
+/* RESPONSIVE */
+@media(max-width:1100px){
+  .planner-layout{grid-template-columns:400px 1fr;}
+  .home-stats{grid-template-columns:repeat(2,1fr);}
+  .home-stat:nth-child(3){box-shadow:inset 0 1px 0 rgba(255,255,255,.07);}
+  .home-stat:nth-child(4){box-shadow:inset 1px 0 0 rgba(255,255,255,.07),inset 0 1px 0 rgba(255,255,255,.07);}
+}
+@media(max-width:900px){
+  :root{--header-h:56px;}
+  header{grid-template-columns:1fr auto;padding:0 1rem;}
+  .header-nav{display:none;}
+  .tabbar{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:500;background:rgba(246,243,238,.92);-webkit-backdrop-filter:saturate(1.6) blur(16px);backdrop-filter:saturate(1.6) blur(16px);box-shadow:0 -1px 0 var(--rule);padding:6px 8px calc(6px + env(safe-area-inset-bottom));}
+  .tabbar .header-btn{color:var(--ink4);display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;font-size:.66rem;border-radius:10px;}
+  .tabbar .header-btn svg{width:20px;height:20px;}
+  .tabbar .header-btn.active{color:var(--ink);background:transparent;box-shadow:none;}
+  body{padding-bottom:calc(64px + env(safe-area-inset-bottom));}
+  .planner-layout{grid-template-columns:1fr;height:auto;}
+  .sidebar{overflow:visible;box-shadow:none;}
+  .map-col{display:none;}
+  .home-page{grid-template-columns:1fr;}
+  .home-right{display:none;}
+  .home-left{padding:2.25rem 1rem 2rem;}
+  .home-left>*{max-width:none;}
+  .home-planner{max-width:none;}
+  .summary-stats{grid-template-columns:repeat(2,1fr);}
+  #metro-map-full{height:calc(100vh - var(--header-h) - 64px);}
+  .map-overlay{top:12px;left:12px;right:12px;width:auto;padding:12px 14px;max-height:calc(100% - 24px);}
+}
+@media(max-width:480px){
+  .sidebar-header{padding:1.5rem 1rem 0;}
+  .form-body{margin:1rem 1rem 0;padding:1rem;}
+  .home-planner{padding:1rem;border-radius:16px;}
+  .summary-card{margin:1rem 1rem 0;}
+  .steps-section{margin:1rem 1rem 1.25rem;padding:1rem 1rem 0;}
+  .live-badge span.lb-text{display:none;}
+  .fare-grid{grid-template-columns:repeat(2,1fr);}
+}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}
+  .net-line{stroke-dashoffset:0;}
+  .net-stn,.net-ic{opacity:1;}
+}
+
+/* ── QUICK DESTINATIONS (planner empty state) ── */
+.quick-dest{margin:1.25rem 1.25rem 1.5rem;animation:fadeUp .4s var(--ease-out) both;animation-delay:80ms;}
+.quick-dest.hidden{display:none;}
+.quick-title{font-size:.64rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink4);margin:0 2px 10px;}
+.quick-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.quick-chips button{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 13px 0 11px;border:none;border-radius:999px;background:var(--surface);box-shadow:var(--shadow-sm),0 0 0 1px var(--rule);font-size:.8rem;font-weight:500;color:var(--ink2);cursor:pointer;transition:transform .16s var(--ease-out),box-shadow .2s ease;}
+.quick-chips button:active{transform:scale(.96);}
+@media (hover:hover) and (pointer:fine){.quick-chips button:hover{box-shadow:var(--shadow),0 0 0 1px var(--rule-strong);color:var(--ink);}}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--c);}
+.dot+.dot{margin-left:-8px;box-shadow:0 0 0 1.5px var(--surface);}
+.quick-tips{list-style:none;margin-top:1.5rem;padding:1rem 1.1rem;border-radius:14px;background:var(--cream2);display:grid;gap:9px;}
+.quick-tips li{font-size:.8rem;color:var(--ink3);line-height:1.45;padding-left:18px;position:relative;}
+.quick-tips li::before{content:'';position:absolute;left:2px;top:.5em;width:6px;height:6px;border-radius:50%;background:var(--ink4);opacity:.6;}
+.quick-tips b{color:var(--ink2);font-weight:600;}
+
+/* ── SUMMARY v2 ── */
+.summary-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px;}
+.summary-eta{font-size:2.1rem;font-weight:500;letter-spacing:-.035em;line-height:1;color:#fff;}
+.summary-eta span{font-size:2.6rem;}
+.summary-arrive{font-size:.78rem;color:rgba(246,243,238,.55);margin-top:6px;}
+.fare-chip{display:flex;flex-direction:column;align-items:flex-end;font-size:1.35rem;font-weight:600;color:var(--gold);letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.1;padding:8px 12px;border-radius:12px;background:rgba(233,196,106,.08);box-shadow:inset 0 0 0 1px rgba(233,196,106,.18);white-space:nowrap;}
+.fare-chip span{font-size:.58rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(233,196,106,.7);margin-bottom:2px;}
+.fare-chip small{font-size:.66rem;font-weight:500;letter-spacing:0;color:rgba(246,243,238,.5);margin-top:3px;}
+.journey-bar{display:flex;gap:3px;height:6px;margin-bottom:14px;}
+.journey-bar i{border-radius:6px;min-width:6px;transform-origin:left;animation:barIn .7s var(--ease-out) both;background:var(--c);}
+.journey-bar i:nth-child(2){animation-delay:80ms}.journey-bar i:nth-child(3){animation-delay:160ms}.journey-bar i:nth-child(4){animation-delay:240ms}.journey-bar i:nth-child(n+5){animation-delay:320ms}
+@keyframes barIn{from{transform:scaleX(.2);opacity:0}to{transform:none;opacity:1}}
+.journey-bar i.jb-walk{background:repeating-linear-gradient(90deg,rgba(246,243,238,.45) 0 3px,transparent 3px 6px);}
+.journey-bar i.jb-xfer{background:rgba(246,243,238,.16);}
+.summary-card .summary-route{font-size:1.05rem;margin-bottom:8px;}
+.summary-pills{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.summary-pills .lc{font-size:.62rem;padding:4px 9px;background:color-mix(in srgb,var(--c) 26%,transparent);color:color-mix(in srgb,var(--c) 40%,#fff);}
+.pill-sep{color:rgba(246,243,238,.3);font-size:.8rem;}
+
+/* ── STEPS v2 ── */
+.stops-list{margin-top:10px;}
+.stops-list summary{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:500;color:var(--ink3);cursor:pointer;list-style:none;padding:5px 10px 5px 8px;border-radius:8px;background:var(--cream2);transition:background-color .15s ease,color .15s ease;user-select:none;}
+.stops-list summary::-webkit-details-marker{display:none;}
+.stops-list summary::before{content:'';width:0;height:0;border-left:4px solid currentColor;border-top:3.5px solid transparent;border-bottom:3.5px solid transparent;transition:transform .2s var(--ease-out);}
+.stops-list[open] summary::before{transform:rotate(90deg);}
+@media (hover:hover) and (pointer:fine){.stops-list summary:hover{color:var(--ink);background:var(--cream3);}}
+.stops-list ol{list-style:none;margin:8px 0 2px 4px;padding-left:14px;position:relative;animation:fadeUp .25s var(--ease-out);}
+.stops-list ol::before{content:'';position:absolute;left:0;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--c,var(--rule));}
+.stops-list li{font-size:.8rem;color:var(--ink3);padding:3px 0;position:relative;display:flex;gap:8px;align-items:baseline;}
+.stops-list li::before{content:'';position:absolute;left:-17px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:var(--surface);box-shadow:inset 0 0 0 2px var(--c);}
+.stops-list li code{font:500 .68rem 'DM Mono',monospace;color:var(--ink4);min-width:34px;}
+
+/* ── MAP v2 ── */
+.stn-tip{background:rgba(23,20,15,.88)!important;color:#fff!important;border:none!important;border-radius:7px!important;padding:3px 8px!important;font:500 11px/1.4 'DM Sans',sans-serif!important;box-shadow:0 4px 12px rgba(0,0,0,.18)!important;white-space:nowrap;}
+.stn-tip::before{display:none!important;}
+.leaflet-tooltip-pane .stn-tip{pointer-events:none;}
+/* Network map labels thin out as you zoom out. */
+.stn-tip.t1,.stn-tip.t2{display:none;}
+.lbl-t1 .stn-tip.t1,.lbl-t2 .stn-tip.t2{display:block;}
+.pop-name{font-weight:600;font-size:13px;color:var(--ink);}
+.pop-sub{font-size:11px;color:var(--ink4);margin-bottom:8px;}
+.pop-chips{display:flex;gap:4px;flex-wrap:wrap;}
+.pop-ic{margin-top:7px;font-size:11px;color:var(--ink3);line-height:1.45;}
+.pop-btn{margin-top:10px;width:100%;height:30px;border:none;border-radius:8px;background:var(--ink);color:#fff;font-size:12px;font-weight:600;cursor:pointer;}
+.pin-start{width:22px;height:22px;border-radius:50%;background:var(--green-l);box-shadow:0 0 0 4px #fff,0 2px 10px rgba(0,0,0,.3);position:relative;}
+.pin-start::after{content:'';position:absolute;inset:-8px;border-radius:50%;background:rgba(35,147,76,.25);animation:pulse 2.4s var(--ease-out) infinite;z-index:-1;}
+
+@media(max-width:900px){
+  .planner-layout.has-route{display:flex;flex-direction:column;}
+  .planner-layout.has-route .map-col{display:block;order:-1;height:42vh;min-height:260px;}
+  .planner-layout.has-route #main-map{height:100%;}
+  .planner-layout.has-route .map-legend{display:none;}
+  /* With a route, phones see map → summary → steps, and the form after for edits. */
+  .planner-layout.has-route .sidebar-header{display:none;}
+  .planner-layout.has-route .result-wrap{order:-1;}
+  .planner-layout.has-route .form-body{margin-bottom:1.25rem;}
+  .quick-dest{margin:1rem;}
+}
+@media (prefers-reduced-motion: reduce){.journey-bar i{animation:none;}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo" onclick="showPage('home')" role="link" tabindex="0" aria-label="London Tube home" onkeydown="if(event.key==='Enter')showPage('home')">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="7" stroke="#E32017" stroke-width="3.2"/>
+        <rect x="2.5" y="10" width="19" height="4" rx=".8" fill="#003688"/>
+      </svg>
+    </div>
+    <div>
+      <span class="logo-text">London Tube</span>
+      <span class="logo-sub">Journey Planner · London</span>
+    </div>
+  </div>
+  <nav class="header-nav">
+    <button class="header-btn active" data-page="home" onclick="showPage('home')">Home</button>
+    <button class="header-btn" data-page="planner" onclick="showPage('planner')">Plan Route</button>
+    <button class="header-btn" data-page="metromap" onclick="showPage('metromap')">Network Map</button>
+    <button class="header-btn" data-page="about" onclick="showPage('about')">About</button>
+  </nav>
+  <div class="live-badge" id="live-badge"><div class="live-dot"></div><span class="lb-text" id="live-text">Trains running</span></div>
+</header>
+
+<nav class="tabbar" aria-label="Sections">
+  <button class="header-btn active" data-page="home" onclick="showPage('home')"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3.5 8.5 10 3.5l6.5 5V16a.5.5 0 0 1-.5.5h-3.5v-5h-5v5H4a.5.5 0 0 1-.5-.5z"/></svg>Home</button>
+  <button class="header-btn" data-page="planner" onclick="showPage('planner')"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="5" r="2"/><circle cx="15" cy="15" r="2"/><path d="M7 5h5a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h5"/></svg>Plan</button>
+  <button class="header-btn" data-page="metromap" onclick="showPage('metromap')"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M2.5 5 7.5 3l5 2 5-2v12l-5 2-5-2-5 2z"/><path d="M7.5 3v12M12.5 5v12"/></svg>Map</button>
+  <button class="header-btn" data-page="about" onclick="showPage('about')"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="10" r="7"/><path d="M10 9v5M10 6.5v.01"/></svg>About</button>
+</nav>
+
+
+<!-- HOME -->
+<div id="page-home" class="page active">
+  <div class="home-page">
+    <div class="home-left">
+      <p class="home-eyebrow">London · Underground &amp; Elizabeth line</p>
+      <h1 class="home-title">Plan your journey<br><em>across London</em></h1>
+      <p class="home-desc">Step-by-step Tube directions with the line, platform direction and train to look for, where to change, and the contactless fare. Use your current location or enter any London address, landmark or station.</p>
+
+      <div class="home-planner">
+        <p class="home-planner-label">Quick Planner</p>
+
+        <div style="margin-bottom:.75rem">
+          <div class="field-label"><span class="label-dot from"></span>From</div>
+          <div class="mode-toggle">
+            <button class="mode-btn active" id="home-gps-btn" onclick="setMode('home','gps')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2.5M8 11.5V14M1 8h2.5M11.5 8H14"/><circle cx="8" cy="8" r="5.5" stroke-dasharray="2.5 2"/></svg>
+              Current Location
+            </button>
+            <button class="mode-btn" id="home-addr-btn" onclick="setMode('home','addr')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5S12.5 9.5 12.5 6C12.5 3.5 10.5 1.5 8 1.5z"/><circle cx="8" cy="6" r="1.5"/></svg>
+              Enter Address
+            </button>
+          </div>
+          <div id="home-gps-panel">
+            <button class="gps-btn" onclick="requestGPS('home')" id="home-gps-action-btn">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="3"/><path d="M10 2v3M10 15v3M2 10h3M15 10h3"/><circle cx="10" cy="10" r="7" stroke-dasharray="2.5 2"/></svg>
+              Detect my current location
+            </button>
+            <div class="gps-status" id="home-gps-status"></div>
+          </div>
+          <div id="home-addr-panel" style="display:none">
+            <div class="addr-wrap">
+              <input type="text" class="address-input" id="home-addr-input" placeholder="e.g. British Museum, or SE1 9SG" oninput="handleAddrInput(this,'home')" autocomplete="off"/>
+              <div class="autocomplete addr-ac" id="home-addr-ac"></div>
+            </div>
+            <p class="search-hint">An address, postcode, landmark, hotel or station in London</p>
+            <p class="addr-resolving" id="home-addr-resolving"></p>
+          </div>
+        </div>
+
+        <div class="form-div"><div class="div-rule"></div><button class="swap-btn" onclick="swapAll('home')" title="Swap" aria-label="Swap start and destination">⇅</button><div class="div-rule"></div></div>
+
+        <div style="margin-top:.75rem">
+          <div class="field-label"><span class="label-dot to"></span>To</div>
+          <div class="stn-wrap">
+            <input type="text" class="stn-input" id="home-dest" placeholder="Search destination station…" oninput="handleStationInput(this,'home','dest')" autocomplete="off"/>
+            <div class="autocomplete" id="home-dest-ac"></div>
+          </div>
+        </div>
+
+        <button class="plan-btn" onclick="planFromHome()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          Find Route
+        </button>
+        <div class="err-msg" id="home-error"></div>
+      </div>
+    </div>
+
+    <div class="home-right">
+      <div class="net-bg"><svg id="hero-net" aria-hidden="true"></svg></div>
+      <p class="home-tagline">“Mind the gap — next stop, anywhere in London.”</p>
+      <div class="home-legend" id="home-legend"></div>
+      <div class="home-stats">
+        <div class="home-stat"><span class="hs-num" id="hs-stations">—</span><span class="hs-lbl">Stations</span></div>
+        <div class="home-stat"><span class="hs-num" id="hs-lines">12</span><span class="hs-lbl">Lines</span></div>
+        <div class="home-stat"><span class="hs-num" id="hs-ic">—</span><span class="hs-lbl">Interchanges</span></div>
+        <div class="home-stat"><span class="hs-num" id="hs-fare">—</span><span class="hs-lbl">Zone 1 fare</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PLANNER -->
+<div id="page-planner" class="page">
+  <div class="planner-layout">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Route Planner</h2>
+        <p class="sidebar-sub">London Underground · Elizabeth line</p>
+      </div>
+      <div class="form-body">
+        <!-- FROM -->
+        <div style="margin-bottom:.75rem">
+          <div class="field-label"><span class="label-dot from"></span>Your Starting Point</div>
+          <div class="mode-toggle">
+            <button class="mode-btn active" id="plan-gps-btn" onclick="setMode('plan','gps')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2.5M8 11.5V14M1 8h2.5M11.5 8H14"/><circle cx="8" cy="8" r="5.5" stroke-dasharray="2.5 2"/></svg>
+              Current Location
+            </button>
+            <button class="mode-btn" id="plan-addr-btn" onclick="setMode('plan','addr')">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6c0 3.5 4.5 8.5 4.5 8.5S12.5 9.5 12.5 6C12.5 3.5 10.5 1.5 8 1.5z"/><circle cx="8" cy="6" r="1.5"/></svg>
+              Enter Address
+            </button>
+          </div>
+          <div id="plan-gps-panel">
+            <button class="gps-btn" onclick="requestGPS('plan')" id="plan-gps-action-btn">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="3"/><path d="M10 2v3M10 15v3M2 10h3M15 10h3"/><circle cx="10" cy="10" r="7" stroke-dasharray="2.5 2"/></svg>
+              Allow location access
+            </button>
+            <div class="gps-status" id="plan-gps-status"></div>
+          </div>
+          <div id="plan-addr-panel" style="display:none">
+            <div class="addr-wrap">
+              <input type="text" class="address-input" id="plan-addr-input" placeholder="e.g. Tower of London, or 10 Downing Street" oninput="handleAddrInput(this,'plan')" autocomplete="off"/>
+              <div class="autocomplete addr-ac" id="plan-addr-ac"></div>
+            </div>
+            <p class="search-hint">An address, landmark, hotel or station</p>
+            <p class="addr-resolving" id="plan-addr-resolving"></p>
+          </div>
+        </div>
+
+        <div class="form-div"><div class="div-rule"></div><button class="swap-btn" onclick="swapAll('plan')" title="Swap" aria-label="Swap start and destination">⇅</button><div class="div-rule"></div></div>
+
+        <!-- TO -->
+        <div style="margin-top:.75rem">
+          <div class="field-label"><span class="label-dot to"></span>Your Destination</div>
+          <div class="stn-wrap">
+            <input type="text" class="stn-input" id="plan-dest" placeholder="Station name (e.g. King's Cross)" oninput="handleStationInput(this,'plan','dest')" autocomplete="off"/>
+            <div class="autocomplete" id="plan-dest-ac"></div>
+          </div>
+        </div>
+
+        <button class="plan-btn" onclick="planRoute()">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
+          Calculate Route
+        </button>
+        <div class="err-msg" id="plan-error"></div>
+      </div>
+      <div class="quick-dest" id="plan-quick">
+        <p class="quick-title">Popular destinations</p>
+        <div class="quick-chips" id="quick-chips"></div>
+        <ul class="quick-tips">
+          <li><b>Line and platform</b> for every train (“Westbound · towards Ealing Broadway”), and which trains not to board</li>
+          <li><b>Branches and changes</b>: only trains that run through, and where to change when they don't</li>
+          <li><b>Fare</b> by zone, peak or off-peak, with the daily cap</li>
+        </ul>
+      </div>
+      <div id="plan-result" style="display:none" class="result-wrap"></div>
+    </div>
+    <div class="map-col">
+      <div id="main-map"></div>
+      <div class="map-legend">
+        <div class="legend-title">Lines</div>
+        <div class="legend-grid" id="planner-legend"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- METRO MAP -->
+<div id="page-metromap" class="page">
+  <div style="position:relative">
+    <div id="metro-map-full"></div>
+    <details class="map-overlay" id="net-overlay" open>
+      <summary><span class="map-overlay-title">London Tube Network</span></summary>
+      <div id="net-legend"></div>
+      <div class="map-overlay-foot">Ringed dots mark stations served by several lines. Lines sharing track run side by side. Zoom in for more station names; tap a station for directions.</div>
+    </details>
+  </div>
+</div>
+
+<!-- ABOUT -->
+<div id="page-about" class="page">
+  <div class="about-page">
+    <h1 class="about-title">About the Planner</h1>
+    <p class="about-intro">An unofficial helper for getting around London by Tube: all 11 London Underground lines plus the Elizabeth line. Enter your location by GPS, address or station, choose a destination, and get a step-by-step guide covering which line and platform direction to take, which trains to let pass, where to change, and what the fare comes to.</p>
+    <div class="about-section">
+      <h2 class="about-section-title">How route finding works</h2>
+      <div class="about-card"><div class="about-card-title">Location → Best Station</div><div class="about-card-body">The Haversine formula gives the distance from your GPS position or address to every station. The planner tries the nearest few (up to 5 within walking range) and picks whichever gets you there soonest once walking time is counted, so a slightly further station on the right line beats an extra change.</div></div>
+      <div class="about-card"><div class="about-card-title">Branches and through trains</div><div class="about-card-body">Each service pattern is its own chain of stops: the Northern line's Morden–Edgware via Bank, Battersea–High Barnet via Charing Cross, the District's Edgware Road–Wimbledon, and so on, checked against TfL's timetables. Only trains that run all day count as through trains, so the planner never sends you on one that doesn't exist and tells you where to change instead: at Kennington for the Charing Cross branch, Earl's Court for Richmond, Baker Street for Watford trains, Hatton Cross for Terminal 4.</div></div>
+      <div class="about-card"><div class="about-card-title">Dijkstra's Shortest Path</div><div class="about-card-body">Changing trains has a real cost: the walk between the two lines' platforms (positions from OpenStreetMap, so long walks like Bank or Green Park count) plus an average wait, longer on branches with few trains. Official out-of-station interchanges such as Euston ⇄ Euston Square and the two Hammersmith stations are included. Dijkstra's algorithm then finds the quickest journey, with a small extra penalty per change to prefer direct routes.</div></div>
+      <div class="about-card"><div class="about-card-title">Line and Direction</div><div class="about-card-body">London platforms are signed by direction (Northbound, Eastbound and so on; Inner and Outer Rail on the western side of the Circle line and the Central line's Hainault loop) and each train shows its destination. Every step gives both, following TfL's own names per section of line, and warns you when trains on the same platform go somewhere else, such as Bakerloo trains ending at Queen's Park.</div></div>
+    </div>
+    <div class="about-section">
+      <h2 class="about-section-title">Fares</h2>
+      <div id="fare-tables"></div>
+      <p class="fare-note">Adult pay as you go fares with contactless or Oyster, from 1 March 2026. Peak is Monday to Friday 06:30–09:30 and 16:00–19:00 (except public holidays), but travel into Zone 1 from outside it in the evening peak is charged off-peak. You pay for every zone you pass through; boundary stations count as whichever zone is cheaper. Tube journeys to Heathrow through Zone 1 are always charged the peak fare; Elizabeth line fares to Heathrow are higher (£15.50 from central London), and travel between the terminals and Hatton Cross is free. A few short Zone 1 ⇄ Zone 2 trips (such as Euston to Camden Town) are charged the Zone 1 fare, so the planner may show up to 50p more for those. Daily caps were frozen for 2026.</p>
+    </div>
+    <div class="about-section">
+      <h2 class="about-section-title">Good to know</h2>
+      <div class="about-card"><div class="about-card-title">Hours</div><div class="about-card-body">Trains run from about 05:00 until shortly after midnight (later starts on Sundays). The Waterloo &amp; City line runs Monday to Friday only. Last trains vary by line and station, so check the times posted at the station if you're travelling late.</div></div>
+      <div class="about-card"><div class="about-card-title">Night Tube</div><div class="about-card-body">On Friday and Saturday nights trains keep running every 10–20 minutes on the Victoria and Jubilee lines, the Central line between Ealing Broadway and Hainault or Loughton, the Northern line's Charing Cross branch (Morden to Edgware and High Barnet) and the Piccadilly line between Cockfosters and Heathrow Terminal 5. At those times the planner only uses those lines.</div></div>
+      <div class="about-card"><div class="about-card-title">What's covered</div><div class="about-card-body">All 11 Underground lines, and the Elizabeth line within London's fare zones: Heathrow and West Drayton to Abbey Wood and Harold Wood (trains continue to Reading, Maidenhead and Shenfield, which have their own fares). Not covered: the DLR, London Overground, trams, National Rail, and the District line's Kensington (Olympia) shuttle, which mostly runs at weekends.</div></div>
+      <div class="about-card"><div class="about-card-title">Data and accuracy</div><div class="about-card-body">Station positions come from OpenStreetMap; service patterns, fare zones, platform directions and interchanges were checked against TfL's open data in October 2026. Distances are straight lines scaled to each line's official length, and times come from a model fitted to TfL's timetabled stop-to-stop times, so journey times and fares are estimates. Always follow in-station signs and check TfL for engineering works.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-veil" id="loading-veil">
+  <div class="loading-card">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loading-msg">Finding your route…</div>
+  </div>
+</div>
+
+<!-- Optional: defines window.GOOGLE_MAPS_API_KEY. Copy config.example.js → config.js. -->
+<script src="config.js"></script>
+<script>
+// ════════════════════════════════════════════════
+//  NETWORK DATASET
+// ════════════════════════════════════════════════
+const METRO = {
+  // Adult pay as you go fares (contactless or Oyster) from 1 March 2026, in £, as [peak, off-peak].
+  // Tube, Elizabeth line, DLR and Overground share them. Checked against TfL's fare finder, Oct 2026.
+  fares:{
+    // Journeys that include Zone 1, by the outermost zone.
+    z1:{1:[3.10,3.00],2:[3.60,3.10],3:[3.90,3.30],4:[4.80,3.60],5:[5.30,3.80],6:[5.90,4.00],7:[7.10,5.20],8:[7.10,5.20],9:[8.80,5.30]},
+    // Journeys that avoid Zone 1, by lowest–highest zone. 8-8 and 9-9 aren't published; estimated as 7-7.
+    nz:{'2-2':[2.30,2.20],'2-3':[2.50,2.30],'2-4':[3.20,2.40],'2-5':[3.40,2.50],'2-6':[3.80,2.60],'2-7':[5.20,3.70],'2-8':[5.20,3.70],'2-9':[5.90,3.80],
+      '3-3':[2.30,2.20],'3-4':[2.50,2.30],'3-5':[3.20,2.40],'3-6':[3.40,2.50],'3-7':[4.20,2.50],'3-8':[4.20,2.50],'3-9':[5.30,2.50],
+      '4-4':[2.30,2.20],'4-5':[2.50,2.30],'4-6':[3.20,2.40],'4-7':[3.40,2.40],'4-8':[3.40,2.40],'4-9':[4.30,2.40],
+      '5-5':[2.30,2.20],'5-6':[2.50,2.30],'5-7':[3.10,2.40],'5-8':[3.10,2.40],'5-9':[3.70,2.40],
+      '6-6':[2.30,2.20],'6-7':[2.30,2.10],'6-8':[2.30,2.10],'6-9':[3.20,2.40],
+      '7-7':[2.10,2.00],'7-8':[2.10,2.00],'7-9':[2.40,2.20],'8-8':[2.10,2.00],'8-9':[2.40,2.20],'9-9':[2.10,2.00]},
+    // Daily cap by outermost zone; off-peak caps stop at £16.30. Frozen for 2026.
+    cap:{1:8.90,2:8.90,3:10.50,4:12.80,5:15.30,6:16.30,7:17.80,8:21.00,9:23.30},
+    capOffPeakMax:16.30,
+    // Elizabeth line to or from Heathrow: a fixed fare through Zone 1 (less from Paddington),
+    // otherwise the zonal fare plus a supplement. Tube journeys to Heathrow through Zone 1 pay
+    // the peak fare at all times. Hatton Cross ⇄ Heathrow and between terminals is free.
+    heathrowXR:{z1:15.50,paddington:14.60,supplement:6.50},
+    // Peak: Monday to Friday 06:30–09:30 and 16:00–19:00 (minutes after midnight).
+    peak:[[390,570],[960,1140]],
+  },
+  // Station positions from OpenStreetMap route relations; service patterns, zones and
+  // interchanges checked against TfL data, Oct 2026. k scales straight-line distance to each
+  // line's official length; p holds each line's own platform position at a station; z is the
+  // fare zone (two numbers for a boundary station).
+  // BEGIN GENERATED by tools/build_stations.py
+  lines:[
+    {"id":"B","name":"Bakerloo","color":"#B36305","tc":"#fff","k":1.033},
+    {"id":"C","name":"Central","color":"#E32017","tc":"#fff","k":1.042},
+    {"id":"Ci","name":"Circle","color":"#FFD300","tc":"#17140F","k":1.031},
+    {"id":"D","name":"District","color":"#00782A","tc":"#fff","k":1.077},
+    {"id":"H","name":"Hammersmith & City","color":"#F3A9BB","tc":"#17140F","k":1.04},
+    {"id":"J","name":"Jubilee","color":"#A0A5A9","tc":"#17140F","k":1.052},
+    {"id":"M","name":"Metropolitan","color":"#9B0056","tc":"#fff","k":1.051},
+    {"id":"N","name":"Northern","color":"#000000","tc":"#fff","k":1.037},
+    {"id":"P","name":"Piccadilly","color":"#003688","tc":"#fff","k":1.041},
+    {"id":"V","name":"Victoria","color":"#0098D4","tc":"#fff","k":1.038},
+    {"id":"W","name":"Waterloo & City","color":"#95CDBA","tc":"#17140F","k":1.291},
+    {"id":"E","name":"Elizabeth","color":"#6950A1","tc":"#fff","k":1.06},
+  ],
+  // Service patterns. df/db: TfL direction code for each stop-to-stop hop, forwards and backwards.
+  routes:[
+    {"id":"B1","line":"B","seq":["elephant_and_castle","lambeth_north","waterloo","embankment","charing_cross","piccadilly_circus","oxford_circus","regents_park","baker_street","marylebone","edgware_road_bakerloo","paddington","warwick_avenue","maida_vale","kilburn_park","queens_park","kensal_green","willesden_junction","harlesden","stonebridge_park","wembley_central","north_wembley","south_kenton","kenton","harrow_and_wealdstone"],"df":"NNNNNNNNNNNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSSSSSSSSSSS"},
+    {"id":"C1","line":"C","seq":["west_ruislip","ruislip_gardens","south_ruislip","northolt","greenford","perivale","hanger_lane","north_acton","east_acton","white_city","shepherds_bush","holland_park","notting_hill_gate","queensway","lancaster_gate","marble_arch","bond_street","oxford_circus","tottenham_court_road","holborn","chancery_lane","st_pauls","bank","liverpool_street","bethnal_green","mile_end","stratford","leyton","leytonstone","snaresbrook","south_woodford","woodford","buckhurst_hill","loughton","debden","theydon_bois","epping"],"df":"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE","db":"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"},
+    {"id":"C2","line":"C","seq":["west_ruislip","ruislip_gardens","south_ruislip","northolt","greenford","perivale","hanger_lane","north_acton","east_acton","white_city","shepherds_bush","holland_park","notting_hill_gate","queensway","lancaster_gate","marble_arch","bond_street","oxford_circus","tottenham_court_road","holborn","chancery_lane","st_pauls","bank","liverpool_street","bethnal_green","mile_end","stratford","leyton","leytonstone","wanstead","redbridge","gants_hill","newbury_park","barkingside","fairlop","hainault"],"df":"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEIIIIII","db":"WWWWWWWWWWWWWWWWWWWWWWWWWWWWOOOOOOO"},
+    {"id":"C3","line":"C","seq":["ealing_broadway","west_acton","north_acton","east_acton","white_city","shepherds_bush","holland_park","notting_hill_gate","queensway","lancaster_gate","marble_arch","bond_street","oxford_circus","tottenham_court_road","holborn","chancery_lane","st_pauls","bank","liverpool_street","bethnal_green","mile_end","stratford","leyton","leytonstone","snaresbrook","south_woodford","woodford","buckhurst_hill","loughton","debden","theydon_bois","epping"],"df":"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE","db":"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"},
+    {"id":"C4","line":"C","seq":["ealing_broadway","west_acton","north_acton","east_acton","white_city","shepherds_bush","holland_park","notting_hill_gate","queensway","lancaster_gate","marble_arch","bond_street","oxford_circus","tottenham_court_road","holborn","chancery_lane","st_pauls","bank","liverpool_street","bethnal_green","mile_end","stratford","leyton","leytonstone","wanstead","redbridge","gants_hill","newbury_park","barkingside","fairlop","hainault"],"df":"EEEEEEEEEEEEEEEEEEEEEEEEIIIIII","db":"WWWWWWWWWWWWWWWWWWWWWWWOOOOOOO","night":1},
+    {"id":"C5","line":"C","seq":["woodford","roding_valley","chigwell","grange_hill","hainault"],"df":"OOOO","db":"IIII","wait":8},
+    {"id":"C6","line":"C","seq":["ealing_broadway","west_acton","north_acton","east_acton","white_city","shepherds_bush","holland_park","notting_hill_gate","queensway","lancaster_gate","marble_arch","bond_street","oxford_circus","tottenham_court_road","holborn","chancery_lane","st_pauls","bank","liverpool_street","bethnal_green","mile_end","stratford","leyton","leytonstone","snaresbrook","south_woodford","woodford","buckhurst_hill","loughton"],"df":"EEEEEEEEEEEEEEEEEEEEEEEEEEEE","db":"WWWWWWWWWWWWWWWWWWWWWWWWWWWW","night":2},
+    {"id":"Ci1","line":"Ci","seq":["hammersmith_handc_line","goldhawk_road","shepherds_bush_market","wood_lane","latimer_road","ladbroke_grove","westbourne_park","royal_oak","paddington_handc_line","edgware_road_circle_line","baker_street","great_portland_street","euston_square","kings_cross_st_pancras","farringdon","barbican","moorgate","liverpool_street","aldgate","tower_hill","monument","cannon_street","mansion_house","blackfriars","temple","embankment","westminster","st_jamess_park","victoria","sloane_square","south_kensington","gloucester_road","high_street_kensington","notting_hill_gate","bayswater","paddington","edgware_road_circle_line"],"df":"EEEEEEEEEEEEEEEEEEEWWWWWWWWWWWWWEOOO","db":"WWWWWWWWWWWWWWWWWWEEEEEEEEEEEEEWIIII","wait":4},
+    {"id":"D1","line":"D","seq":["upminster","upminster_bridge","hornchurch","elm_park","dagenham_east","dagenham_heathway","becontree","upney","barking","east_ham","upton_park","plaistow","west_ham","bromley_by_bow","bow_road","mile_end","stepney_green","whitechapel","aldgate_east","tower_hill","monument","cannon_street","mansion_house","blackfriars","temple","embankment","westminster","st_jamess_park","victoria","sloane_square","south_kensington","gloucester_road","earls_court","west_kensington","barons_court","hammersmith_district_and_piccadilly","ravenscourt_park","stamford_brook","turnham_green","gunnersbury","kew_gardens","richmond"],"df":"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","db":"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"},
+    {"id":"D2","line":"D","seq":["upminster","upminster_bridge","hornchurch","elm_park","dagenham_east","dagenham_heathway","becontree","upney","barking","east_ham","upton_park","plaistow","west_ham","bromley_by_bow","bow_road","mile_end","stepney_green","whitechapel","aldgate_east","tower_hill","monument","cannon_street","mansion_house","blackfriars","temple","embankment","westminster","st_jamess_park","victoria","sloane_square","south_kensington","gloucester_road","earls_court","west_kensington","barons_court","hammersmith_district_and_piccadilly","ravenscourt_park","stamford_brook","turnham_green","chiswick_park","acton_town","ealing_common","ealing_broadway"],"df":"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","db":"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"},
+    {"id":"D3","line":"D","seq":["upminster","upminster_bridge","hornchurch","elm_park","dagenham_east","dagenham_heathway","becontree","upney","barking","east_ham","upton_park","plaistow","west_ham","bromley_by_bow","bow_road","mile_end","stepney_green","whitechapel","aldgate_east","tower_hill","monument","cannon_street","mansion_house","blackfriars","temple","embankment","westminster","st_jamess_park","victoria","sloane_square","south_kensington","gloucester_road","earls_court","west_brompton","fulham_broadway","parsons_green","putney_bridge","east_putney","southfields","wimbledon_park","wimbledon"],"df":"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","db":"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"},
+    {"id":"D4","line":"D","seq":["edgware_road_circle_line","paddington","bayswater","notting_hill_gate","high_street_kensington","earls_court","west_brompton","fulham_broadway","parsons_green","putney_bridge","east_putney","southfields","wimbledon_park","wimbledon"],"df":"IIIIWWWWWWWWW","db":"OOOEEEEEEEEEE","wait":4},
+    {"id":"H1","line":"H","seq":["hammersmith_handc_line","goldhawk_road","shepherds_bush_market","wood_lane","latimer_road","ladbroke_grove","westbourne_park","royal_oak","paddington_handc_line","edgware_road_circle_line","baker_street","great_portland_street","euston_square","kings_cross_st_pancras","farringdon","barbican","moorgate","liverpool_street","aldgate_east","whitechapel","stepney_green","mile_end","bow_road","bromley_by_bow","west_ham","plaistow","upton_park","east_ham","barking"],"df":"EEEEEEEEEEEEEEEEEEEEEEEEEEEE","db":"WWWWWWWWWWWWWWWWWWWWWWWWWWWW","wait":4},
+    {"id":"J1","line":"J","seq":["stanmore","canons_park","queensbury","kingsbury","wembley_park","neasden","dollis_hill","willesden_green","kilburn","west_hampstead","finchley_road","swiss_cottage","st_johns_wood","baker_street","bond_street","green_park","westminster","waterloo","southwark","london_bridge","bermondsey","canada_water","canary_wharf","north_greenwich","canning_town","west_ham","stratford"],"df":"SSSSSSSSSSSSSSSSEEEEEEEEEE","db":"NNNNNNNNNNNNNNNWWWWWWWWWWW","night":1},
+    {"id":"M1","line":"M","seq":["aldgate","liverpool_street","moorgate","barbican","farringdon","kings_cross_st_pancras","euston_square","great_portland_street","baker_street","finchley_road","wembley_park","preston_road","northwick_park","harrow_on_the_hill","west_harrow","rayners_lane","eastcote","ruislip_manor","ruislip","ickenham","hillingdon","uxbridge"],"df":"WWWWWWWWNNNNNNNWWWWWW","db":"EEEEEEESSSSSSSEEEEEEE"},
+    {"id":"M2","line":"M","seq":["aldgate","liverpool_street","moorgate","barbican","farringdon","kings_cross_st_pancras","euston_square","great_portland_street","baker_street","finchley_road","wembley_park","preston_road","northwick_park","harrow_on_the_hill","north_harrow","pinner","northwood_hills","northwood","moor_park","rickmansworth","chorleywood","chalfont_and_latimer","amersham"],"df":"WWWWWWWWNNNNNNNNNNNNNN","db":"EEEEEEESSSSSSSSSSSSSSS","wait":8},
+    {"id":"M3","line":"M","seq":["aldgate","liverpool_street","moorgate","barbican","farringdon","kings_cross_st_pancras","euston_square","great_portland_street","baker_street","finchley_road","wembley_park","preston_road","northwick_park","harrow_on_the_hill","north_harrow","pinner","northwood_hills","northwood","moor_park","rickmansworth","chorleywood","chalfont_and_latimer","chesham"],"df":"WWWWWWWWNNNNNNNNNNNNNN","db":"EEEEEEESSSSSSSSSSSSSSS","wait":12},
+    {"id":"M4","line":"M","seq":["baker_street","finchley_road","wembley_park","preston_road","northwick_park","harrow_on_the_hill","north_harrow","pinner","northwood_hills","northwood","moor_park","croxley","watford"],"df":"NNNNNNNNNNNN","db":"SSSSSSSSSSSS","wait":5},
+    {"id":"N1","line":"N","seq":["morden","south_wimbledon","colliers_wood","tooting_broadway","tooting_bec","balham","clapham_south","clapham_common","clapham_north","stockwell","oval","kennington","elephant_and_castle","borough","london_bridge","bank","moorgate","old_street","angel","kings_cross_st_pancras","euston","camden_town","chalk_farm","belsize_park","hampstead","golders_green","brent_cross","hendon_central","colindale","burnt_oak","edgware"],"df":"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSS","via":"Bank"},
+    {"id":"N2","line":"N","seq":["morden","south_wimbledon","colliers_wood","tooting_broadway","tooting_bec","balham","clapham_south","clapham_common","clapham_north","stockwell","oval","kennington","elephant_and_castle","borough","london_bridge","bank","moorgate","old_street","angel","kings_cross_st_pancras","euston","camden_town","kentish_town","tufnell_park","archway","highgate","east_finchley","finchley_central","west_finchley","woodside_park","totteridge_and_whetstone","high_barnet"],"df":"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS","via":"Bank"},
+    {"id":"N3","line":"N","seq":["morden","south_wimbledon","colliers_wood","tooting_broadway","tooting_bec","balham","clapham_south","clapham_common","clapham_north","stockwell","oval","kennington","elephant_and_castle","borough","london_bridge","bank","moorgate","old_street","angel","kings_cross_st_pancras","euston","camden_town","kentish_town","tufnell_park","archway","highgate","east_finchley","finchley_central","mill_hill_east"],"df":"NNNNNNNNNNNNNNNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSSSSSSSSSSSSSSS","via":"Bank","wait":7},
+    {"id":"N4","line":"N","seq":["kennington","waterloo","embankment","charing_cross","leicester_square","tottenham_court_road","goodge_street","warren_street","euston","mornington_crescent","camden_town","chalk_farm","belsize_park","hampstead","golders_green","brent_cross","hendon_central","colindale","burnt_oak","edgware"],"df":"NNNNNNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSSSSSS","via":"Charing Cross"},
+    {"id":"N5","line":"N","seq":["battersea_power_station","nine_elms","kennington","waterloo","embankment","charing_cross","leicester_square","tottenham_court_road","goodge_street","warren_street","euston","mornington_crescent","camden_town","kentish_town","tufnell_park","archway","highgate","east_finchley","finchley_central","west_finchley","woodside_park","totteridge_and_whetstone","high_barnet"],"df":"NNNNNNNNNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSSSSSSSSS","via":"Charing Cross"},
+    {"id":"N6","line":"N","seq":["battersea_power_station","nine_elms","kennington","waterloo","embankment","charing_cross","leicester_square","tottenham_court_road","goodge_street","warren_street","euston","mornington_crescent","camden_town","kentish_town","tufnell_park","archway","highgate","east_finchley","finchley_central","mill_hill_east"],"df":"NNNNNNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSSSSSS","via":"Charing Cross","wait":7},
+    {"id":"N7","line":"N","seq":["morden","south_wimbledon","colliers_wood","tooting_broadway","tooting_bec","balham","clapham_south","clapham_common","clapham_north","stockwell","oval","kennington","waterloo","embankment","charing_cross","leicester_square","tottenham_court_road","goodge_street","warren_street","euston","mornington_crescent","camden_town","chalk_farm","belsize_park","hampstead","golders_green","brent_cross","hendon_central","colindale","burnt_oak","edgware"],"df":"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSS","via":"Charing Cross","night":2},
+    {"id":"N8","line":"N","seq":["morden","south_wimbledon","colliers_wood","tooting_broadway","tooting_bec","balham","clapham_south","clapham_common","clapham_north","stockwell","oval","kennington","waterloo","embankment","charing_cross","leicester_square","tottenham_court_road","goodge_street","warren_street","euston","mornington_crescent","camden_town","kentish_town","tufnell_park","archway","highgate","east_finchley","finchley_central","west_finchley","woodside_park","totteridge_and_whetstone","high_barnet"],"df":"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS","via":"Charing Cross","night":2},
+    {"id":"P1","line":"P","seq":["cockfosters","oakwood","southgate","arnos_grove","bounds_green","wood_green","turnpike_lane","manor_house","finsbury_park","arsenal","holloway_road","caledonian_road","kings_cross_st_pancras","russell_square","holborn","covent_garden","leicester_square","piccadilly_circus","green_park","hyde_park_corner","knightsbridge","south_kensington","gloucester_road","earls_court","barons_court","hammersmith_district_and_piccadilly","acton_town","south_ealing","northfields","boston_manor","osterley","hounslow_east","hounslow_central","hounslow_west","hatton_cross","heathrow_terminals_2_and_3","heathrow_terminal_5"],"df":"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","db":"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE","night":1},
+    {"id":"P2","line":"P","seq":["cockfosters","oakwood","southgate","arnos_grove","bounds_green","wood_green","turnpike_lane","manor_house","finsbury_park","arsenal","holloway_road","caledonian_road","kings_cross_st_pancras","russell_square","holborn","covent_garden","leicester_square","piccadilly_circus","green_park","hyde_park_corner","knightsbridge","south_kensington","gloucester_road","earls_court","barons_court","hammersmith_district_and_piccadilly","acton_town","south_ealing","northfields","boston_manor","osterley","hounslow_east","hounslow_central","hounslow_west","hatton_cross","heathrow_terminal_4"],"df":"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","wait":5,"oneway":1},
+    {"id":"P3","line":"P","seq":["heathrow_terminal_4","heathrow_terminals_2_and_3","hatton_cross","hounslow_west","hounslow_central","hounslow_east","osterley","boston_manor","northfields","south_ealing","acton_town","hammersmith_district_and_piccadilly","barons_court","earls_court","gloucester_road","south_kensington","knightsbridge","hyde_park_corner","green_park","piccadilly_circus","leicester_square","covent_garden","holborn","russell_square","kings_cross_st_pancras","caledonian_road","holloway_road","arsenal","finsbury_park","manor_house","turnpike_lane","wood_green","bounds_green","arnos_grove","southgate","oakwood","cockfosters"],"df":"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE","wait":5,"oneway":1},
+    {"id":"P4","line":"P","seq":["cockfosters","oakwood","southgate","arnos_grove","bounds_green","wood_green","turnpike_lane","manor_house","finsbury_park","arsenal","holloway_road","caledonian_road","kings_cross_st_pancras","russell_square","holborn","covent_garden","leicester_square","piccadilly_circus","green_park","hyde_park_corner","knightsbridge","south_kensington","gloucester_road","earls_court","barons_court","hammersmith_district_and_piccadilly","acton_town","ealing_common","north_ealing","park_royal","alperton","sudbury_town","sudbury_hill","south_harrow","rayners_lane","eastcote","ruislip_manor","ruislip","ickenham","hillingdon","uxbridge"],"df":"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","db":"EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE","wait":6},
+    {"id":"V1","line":"V","seq":["brixton","stockwell","vauxhall","pimlico","victoria","green_park","oxford_circus","warren_street","euston","kings_cross_st_pancras","highbury_and_islington","finsbury_park","seven_sisters","tottenham_hale","blackhorse_road","walthamstow_central"],"df":"NNNNNNNNNNNNNNN","db":"SSSSSSSSSSSSSSS","night":1},
+    {"id":"W1","line":"W","seq":["waterloo","bank"],"df":"E","db":"W","weekdays":1},
+    {"id":"E1","line":"E","seq":["heathrow_terminal_4","heathrow_terminals_2_and_3","hayes_and_harlington","southall","hanwell","west_ealing","ealing_broadway","acton_main_line","paddington","bond_street","tottenham_court_road","farringdon","liverpool_street","whitechapel","canary_wharf","custom_house","woolwich","abbey_wood"],"df":"EEEEEEEEEEEEEEEEE","db":"WWWWWWWWWWWWWWWWW","wait":6},
+    {"id":"E2","line":"E","seq":["heathrow_terminal_5","heathrow_terminals_2_and_3","hayes_and_harlington","southall","hanwell","west_ealing","ealing_broadway","acton_main_line","paddington","bond_street","tottenham_court_road","farringdon","liverpool_street","whitechapel","stratford","maryland","forest_gate","manor_park","ilford","seven_kings","goodmayes","chadwell_heath","romford","gidea_park","harold_wood"],"df":"EEEEEEEEEEEEEEEEEEEEEEEE","db":"WWWWWWWWWWWWWWWWWWWWWWWW","wait":12,"to":["Heathrow Terminal 5","Shenfield"]},
+    {"id":"E3","line":"E","seq":["west_drayton","hayes_and_harlington","southall","hanwell","west_ealing","ealing_broadway","acton_main_line","paddington","bond_street","tottenham_court_road","farringdon","liverpool_street","whitechapel","canary_wharf","custom_house","woolwich","abbey_wood"],"df":"EEEEEEEEEEEEEEEE","db":"WWWWWWWWWWWWWWWW","wait":8,"to":["Reading/Maidenhead","Abbey Wood"]},
+    {"id":"E4","line":"E","seq":["paddington","bond_street","tottenham_court_road","farringdon","liverpool_street","whitechapel","stratford","maryland","forest_gate","manor_park","ilford","seven_kings","goodmayes","chadwell_heath","romford","gidea_park","harold_wood"],"df":"EEEEEEEEEEEEEEEE","db":"WWWWWWWWWWWWWWWW","wait":4,"to":["Paddington","Shenfield"]},
+  ],
+  // Other regular trains (short workings, part-time through trains), for platform advice.
+  services:[
+    ["B","","elephant_and_castle","lambeth_north","waterloo","embankment","charing_cross","piccadilly_circus","oxford_circus","regents_park","baker_street","marylebone","edgware_road_bakerloo","paddington","warwick_avenue","maida_vale","kilburn_park","queens_park"],
+    ["B","","elephant_and_castle","lambeth_north","waterloo","embankment","charing_cross","piccadilly_circus","oxford_circus","regents_park","baker_street","marylebone","edgware_road_bakerloo","paddington","warwick_avenue","maida_vale","kilburn_park","queens_park","kensal_green","willesden_junction","harlesden","stonebridge_park"],
+    ["C","","west_ruislip","ruislip_gardens","south_ruislip","northolt","greenford","perivale","hanger_lane","north_acton","east_acton","white_city","shepherds_bush","holland_park","notting_hill_gate","queensway","lancaster_gate","marble_arch","bond_street","oxford_circus","tottenham_court_road","holborn","chancery_lane","st_pauls","bank","liverpool_street","bethnal_green","mile_end","stratford","leyton","leytonstone","snaresbrook","south_woodford","woodford","buckhurst_hill","loughton"],
+    ["C","","west_ruislip","ruislip_gardens","south_ruislip","northolt","greenford","perivale","hanger_lane","north_acton","east_acton","white_city","shepherds_bush","holland_park","notting_hill_gate","queensway","lancaster_gate","marble_arch","bond_street","oxford_circus","tottenham_court_road","holborn","chancery_lane","st_pauls","bank","liverpool_street","bethnal_green","mile_end","stratford","leyton","leytonstone","wanstead","redbridge","gants_hill","newbury_park"],
+    ["C","","ealing_broadway","west_acton","north_acton","east_acton","white_city","shepherds_bush","holland_park","notting_hill_gate","queensway","lancaster_gate","marble_arch","bond_street","oxford_circus","tottenham_court_road","holborn","chancery_lane","st_pauls","bank","liverpool_street","bethnal_green","mile_end","stratford","leyton","leytonstone","wanstead","redbridge","gants_hill","newbury_park"],
+    ["C","","epping","theydon_bois","debden","loughton","buckhurst_hill","woodford","south_woodford","snaresbrook","leytonstone","leyton","stratford","mile_end","bethnal_green","liverpool_street","bank","st_pauls","chancery_lane","holborn","tottenham_court_road","oxford_circus","bond_street","marble_arch","lancaster_gate","queensway","notting_hill_gate","holland_park","shepherds_bush","white_city"],
+    ["C","","hainault","fairlop","barkingside","newbury_park","gants_hill","redbridge","wanstead","leytonstone","leyton","stratford","mile_end","bethnal_green","liverpool_street","bank","st_pauls","chancery_lane","holborn","tottenham_court_road","oxford_circus","bond_street","marble_arch","lancaster_gate","queensway","notting_hill_gate","holland_park","shepherds_bush","white_city"],
+    ["C","","epping","theydon_bois","debden","loughton","buckhurst_hill","woodford","south_woodford","snaresbrook","leytonstone","leyton","stratford","mile_end","bethnal_green","liverpool_street","bank","st_pauls","chancery_lane","holborn","tottenham_court_road","oxford_circus","bond_street","marble_arch","lancaster_gate","queensway","notting_hill_gate","holland_park","shepherds_bush","white_city","east_acton","north_acton"],
+    ["C","","hainault","fairlop","barkingside","newbury_park","gants_hill","redbridge","wanstead","leytonstone","leyton","stratford","mile_end","bethnal_green","liverpool_street","bank","st_pauls","chancery_lane","holborn","tottenham_court_road","oxford_circus","bond_street","marble_arch","lancaster_gate","queensway","notting_hill_gate","holland_park","shepherds_bush","white_city","east_acton","north_acton"],
+    ["C","","epping","theydon_bois","debden","loughton","buckhurst_hill","woodford","south_woodford","snaresbrook","leytonstone","leyton","stratford","mile_end","bethnal_green","liverpool_street","bank","st_pauls","chancery_lane","holborn","tottenham_court_road","oxford_circus","bond_street","marble_arch","lancaster_gate","queensway","notting_hill_gate","holland_park","shepherds_bush","white_city","east_acton","north_acton","hanger_lane","perivale","greenford","northolt"],
+    ["D","","richmond","kew_gardens","gunnersbury","turnham_green","stamford_brook","ravenscourt_park","hammersmith_district_and_piccadilly","barons_court","west_kensington","earls_court","gloucester_road","south_kensington","sloane_square","victoria","st_jamess_park","westminster","embankment","temple","blackfriars","mansion_house","cannon_street","monument","tower_hill"],
+    ["D","","ealing_broadway","ealing_common","acton_town","chiswick_park","turnham_green","stamford_brook","ravenscourt_park","hammersmith_district_and_piccadilly","barons_court","west_kensington","earls_court","gloucester_road","south_kensington","sloane_square","victoria","st_jamess_park","westminster","embankment","temple","blackfriars","mansion_house","cannon_street","monument","tower_hill"],
+    ["D","","wimbledon","wimbledon_park","southfields","east_putney","putney_bridge","parsons_green","fulham_broadway","west_brompton","earls_court","gloucester_road","south_kensington","sloane_square","victoria","st_jamess_park","westminster","embankment","temple","blackfriars","mansion_house","cannon_street","monument","tower_hill"],
+    ["D","","richmond","kew_gardens","gunnersbury","turnham_green","stamford_brook","ravenscourt_park","hammersmith_district_and_piccadilly","barons_court","west_kensington","earls_court","gloucester_road","south_kensington","sloane_square","victoria","st_jamess_park","westminster","embankment","temple","blackfriars","mansion_house","cannon_street","monument","tower_hill","aldgate_east","whitechapel","stepney_green","mile_end","bow_road","bromley_by_bow","west_ham","plaistow","upton_park","east_ham","barking"],
+    ["D","","ealing_broadway","ealing_common","acton_town","chiswick_park","turnham_green","stamford_brook","ravenscourt_park","hammersmith_district_and_piccadilly","barons_court","west_kensington","earls_court","gloucester_road","south_kensington","sloane_square","victoria","st_jamess_park","westminster","embankment","temple","blackfriars","mansion_house","cannon_street","monument","tower_hill","aldgate_east","whitechapel","stepney_green","mile_end","bow_road","bromley_by_bow","west_ham","plaistow","upton_park","east_ham","barking"],
+    ["D","","wimbledon","wimbledon_park","southfields","east_putney","putney_bridge","parsons_green","fulham_broadway","west_brompton","earls_court","gloucester_road","south_kensington","sloane_square","victoria","st_jamess_park","westminster","embankment","temple","blackfriars","mansion_house","cannon_street","monument","tower_hill","aldgate_east","whitechapel","stepney_green","mile_end","bow_road","bromley_by_bow","west_ham","plaistow","upton_park","east_ham","barking"],
+    ["D","","ealing_broadway","ealing_common","acton_town","chiswick_park","turnham_green","stamford_brook","ravenscourt_park","hammersmith_district_and_piccadilly","barons_court","west_kensington","earls_court","gloucester_road","south_kensington","sloane_square","victoria","st_jamess_park","westminster","embankment","temple","blackfriars","mansion_house","cannon_street","monument","tower_hill","aldgate_east","whitechapel","stepney_green","mile_end","bow_road","bromley_by_bow","west_ham","plaistow","upton_park","east_ham","barking","upney","becontree","dagenham_heathway","dagenham_east"],
+    ["D","","wimbledon","wimbledon_park","southfields","east_putney","putney_bridge","parsons_green","fulham_broadway","west_brompton","earls_court","gloucester_road","south_kensington","sloane_square","victoria","st_jamess_park","westminster","embankment","temple","blackfriars","mansion_house","cannon_street","monument","tower_hill","aldgate_east","whitechapel","stepney_green","mile_end","bow_road","bromley_by_bow","west_ham","plaistow","upton_park","east_ham","barking","upney","becontree","dagenham_heathway","dagenham_east"],
+    ["J","","stratford","west_ham","canning_town","north_greenwich","canary_wharf","canada_water","bermondsey","london_bridge","southwark","waterloo","westminster","green_park","bond_street","baker_street","st_johns_wood","swiss_cottage","finchley_road","west_hampstead","kilburn","willesden_green","dollis_hill","neasden","wembley_park"],
+    ["J","","stratford","west_ham","canning_town","north_greenwich","canary_wharf","canada_water","bermondsey","london_bridge","southwark","waterloo","westminster","green_park","bond_street","baker_street","st_johns_wood","swiss_cottage","finchley_road","west_hampstead","kilburn","willesden_green"],
+    ["J","","stratford","west_ham","canning_town","north_greenwich","canary_wharf","canada_water","bermondsey","london_bridge","southwark","waterloo","westminster","green_park","bond_street","baker_street","st_johns_wood","swiss_cottage","finchley_road","west_hampstead"],
+    ["J","","stanmore","canons_park","queensbury","kingsbury","wembley_park","neasden","dollis_hill","willesden_green","kilburn","west_hampstead","finchley_road","swiss_cottage","st_johns_wood","baker_street","bond_street","green_park","westminster","waterloo","southwark","london_bridge","bermondsey","canada_water","canary_wharf","north_greenwich"],
+    ["J","","stanmore","canons_park","queensbury","kingsbury","wembley_park","neasden","dollis_hill","willesden_green","kilburn","west_hampstead","finchley_road","swiss_cottage","st_johns_wood","baker_street","bond_street","green_park","westminster","waterloo","southwark","london_bridge","bermondsey","canada_water","canary_wharf","north_greenwich","canning_town","west_ham"],
+    ["M","","uxbridge","hillingdon","ickenham","ruislip","ruislip_manor","eastcote","rayners_lane","west_harrow","harrow_on_the_hill","northwick_park","preston_road","wembley_park","finchley_road","baker_street"],
+    ["M","","amersham","chalfont_and_latimer","chorleywood","rickmansworth","moor_park","northwood","northwood_hills","pinner","north_harrow","harrow_on_the_hill","northwick_park","preston_road","wembley_park","finchley_road","baker_street"],
+    ["M","","chesham","chalfont_and_latimer","chorleywood","rickmansworth","moor_park","northwood","northwood_hills","pinner","north_harrow","harrow_on_the_hill","northwick_park","preston_road","wembley_park","finchley_road","baker_street"],
+    ["M","","aldgate","liverpool_street","moorgate","barbican","farringdon","kings_cross_st_pancras","euston_square","great_portland_street","baker_street","finchley_road","wembley_park","preston_road","northwick_park","harrow_on_the_hill"],
+    ["M","","uxbridge","hillingdon","ickenham","ruislip","ruislip_manor","eastcote","rayners_lane","west_harrow","harrow_on_the_hill"],
+    ["N","Bank","morden","south_wimbledon","colliers_wood","tooting_broadway","tooting_bec","balham","clapham_south","clapham_common","clapham_north","stockwell","oval","kennington","elephant_and_castle","borough","london_bridge","bank","moorgate","old_street","angel","kings_cross_st_pancras","euston","camden_town","chalk_farm","belsize_park","hampstead","golders_green"],
+    ["N","Charing Cross","kennington","waterloo","embankment","charing_cross","leicester_square","tottenham_court_road","goodge_street","warren_street","euston","mornington_crescent","camden_town","kentish_town","tufnell_park","archway","highgate","east_finchley","finchley_central","west_finchley","woodside_park","totteridge_and_whetstone","high_barnet"],
+    ["P","","cockfosters","oakwood","southgate","arnos_grove","bounds_green","wood_green","turnpike_lane","manor_house","finsbury_park","arsenal","holloway_road","caledonian_road","kings_cross_st_pancras","russell_square","holborn","covent_garden","leicester_square","piccadilly_circus","green_park","hyde_park_corner","knightsbridge","south_kensington","gloucester_road","earls_court","barons_court","hammersmith_district_and_piccadilly","acton_town","ealing_common","north_ealing","park_royal","alperton","sudbury_town","sudbury_hill","south_harrow","rayners_lane"],
+    ["P","","cockfosters","oakwood","southgate","arnos_grove","bounds_green","wood_green","turnpike_lane","manor_house","finsbury_park","arsenal","holloway_road","caledonian_road","kings_cross_st_pancras","russell_square","holborn","covent_garden","leicester_square","piccadilly_circus","green_park","hyde_park_corner","knightsbridge","south_kensington","gloucester_road","earls_court","barons_court","hammersmith_district_and_piccadilly","acton_town","south_ealing","northfields"],
+    ["P","","heathrow_terminal_5","heathrow_terminals_2_and_3","hatton_cross","hounslow_west","hounslow_central","hounslow_east","osterley","boston_manor","northfields","south_ealing","acton_town","hammersmith_district_and_piccadilly","barons_court","earls_court","gloucester_road","south_kensington","knightsbridge","hyde_park_corner","green_park","piccadilly_circus","leicester_square","covent_garden","holborn","russell_square","kings_cross_st_pancras","caledonian_road","holloway_road","arsenal","finsbury_park","manor_house","turnpike_lane","wood_green","bounds_green","arnos_grove"],
+    ["P","","uxbridge","hillingdon","ickenham","ruislip","ruislip_manor","eastcote","rayners_lane","south_harrow","sudbury_hill","sudbury_town","alperton","park_royal","north_ealing","ealing_common","acton_town","hammersmith_district_and_piccadilly","barons_court","earls_court","gloucester_road","south_kensington","knightsbridge","hyde_park_corner","green_park","piccadilly_circus","leicester_square","covent_garden","holborn","russell_square","kings_cross_st_pancras","caledonian_road","holloway_road","arsenal","finsbury_park","manor_house","turnpike_lane","wood_green","bounds_green","arnos_grove"],
+    ["P","","heathrow_terminal_5","heathrow_terminals_2_and_3","hatton_cross","hounslow_west","hounslow_central","hounslow_east","osterley","boston_manor","northfields","south_ealing","acton_town","hammersmith_district_and_piccadilly","barons_court","earls_court","gloucester_road","south_kensington","knightsbridge","hyde_park_corner","green_park","piccadilly_circus","leicester_square","covent_garden","holborn","russell_square","kings_cross_st_pancras","caledonian_road","holloway_road","arsenal","finsbury_park","manor_house","turnpike_lane","wood_green","bounds_green","arnos_grove","southgate","oakwood"],
+    ["V","","brixton","stockwell","vauxhall","pimlico","victoria","green_park","oxford_circus","warren_street","euston","kings_cross_st_pancras","highbury_and_islington","finsbury_park","seven_sisters"],
+    ["E","","abbey_wood","woolwich","custom_house","canary_wharf","whitechapel","liverpool_street","farringdon","tottenham_court_road","bond_street","paddington"],
+    ["E","","harold_wood","gidea_park","romford","chadwell_heath","goodmayes","seven_kings","ilford","manor_park","forest_gate","maryland","stratford","whitechapel","liverpool_street","farringdon","tottenham_court_road","bond_street","paddington"],
+    ["M","","aldgate","liverpool_street","moorgate","barbican","farringdon","kings_cross_st_pancras","euston_square","great_portland_street","baker_street","finchley_road","wembley_park","preston_road","northwick_park","harrow_on_the_hill","north_harrow","pinner","northwood_hills","northwood","moor_park","croxley","watford"],
+    ["M","","watford","croxley","moor_park","northwood","northwood_hills","pinner","north_harrow","harrow_on_the_hill","northwick_park","preston_road","wembley_park","finchley_road","baker_street","great_portland_street","euston_square","kings_cross_st_pancras","farringdon","barbican","moorgate","liverpool_street","aldgate"],
+    ["N","Charing Cross","battersea_power_station","nine_elms","kennington","waterloo","embankment","charing_cross","leicester_square","tottenham_court_road","goodge_street","warren_street","euston","mornington_crescent","camden_town","chalk_farm","belsize_park","hampstead","golders_green","brent_cross","hendon_central","colindale","burnt_oak","edgware"],
+    ["N","Charing Cross","edgware","burnt_oak","colindale","hendon_central","brent_cross","golders_green","hampstead","belsize_park","chalk_farm","camden_town","mornington_crescent","euston","warren_street","goodge_street","tottenham_court_road","leicester_square","charing_cross","embankment","waterloo","kennington","nine_elms","battersea_power_station"],
+    ["N","Charing Cross","morden","south_wimbledon","colliers_wood","tooting_broadway","tooting_bec","balham","clapham_south","clapham_common","clapham_north","stockwell","oval","kennington","waterloo","embankment","charing_cross","leicester_square","tottenham_court_road","goodge_street","warren_street","euston","mornington_crescent","camden_town","kentish_town","tufnell_park","archway","highgate","east_finchley","finchley_central","mill_hill_east"],
+    ["N","Charing Cross","mill_hill_east","finchley_central","east_finchley","highgate","archway","tufnell_park","kentish_town","camden_town","mornington_crescent","euston","warren_street","goodge_street","tottenham_court_road","leicester_square","charing_cross","embankment","waterloo","kennington","oval","stockwell","clapham_north","clapham_common","clapham_south","balham","tooting_bec","tooting_broadway","colliers_wood","south_wimbledon","morden"],
+  ],
+  // Official interchanges between differently named stations: 'in' = inside, 'osi' = out of station.
+  links:[["bank","monument","in"],["paddington","paddington_handc_line","in"],["liverpool_street","moorgate","in","E"],["euston","euston_square","osi"],["hammersmith_district_and_piccadilly","hammersmith_handc_line","osi"],["edgware_road_bakerloo","edgware_road_circle_line","osi"],["white_city","wood_lane","osi"],["bayswater","queensway","osi"]],
+  stations:[
+    {"id":"abbey_wood","name":"Abbey Wood","lat":51.49111,"lng":0.1194,"z":4,"p":{"E":[51.49111,0.1194]},"terminal":1},
+    {"id":"acton_main_line","name":"Acton Main Line","lat":51.51701,"lng":-0.26786,"z":3,"p":{"E":[51.51701,-0.26786]}},
+    {"id":"acton_town","name":"Acton Town","lat":51.50267,"lng":-0.2799,"z":3,"p":{"D":[51.50267,-0.27994],"P":[51.50266,-0.27986]}},
+    {"id":"aldgate","name":"Aldgate","lat":51.51425,"lng":-0.07572,"z":1,"p":{"Ci":[51.51425,-0.07571],"M":[51.51425,-0.07572]},"terminal":1},
+    {"id":"aldgate_east","name":"Aldgate East","lat":51.51562,"lng":-0.07082,"z":1,"p":{"D":[51.51562,-0.07082],"H":[51.51562,-0.07082]}},
+    {"id":"alperton","name":"Alperton","lat":51.54083,"lng":-0.30017,"z":4,"p":{"P":[51.54083,-0.30017]}},
+    {"id":"amersham","name":"Amersham","lat":51.67407,"lng":-0.60737,"z":9,"p":{"M":[51.67407,-0.60737]},"terminal":1},
+    {"id":"angel","name":"Angel","lat":51.5315,"lng":-0.1047,"z":1,"p":{"N":[51.5315,-0.1047]}},
+    {"id":"archway","name":"Archway","lat":51.56502,"lng":-0.13488,"z":[2,3],"p":{"N":[51.56502,-0.13488]}},
+    {"id":"arnos_grove","name":"Arnos Grove","lat":51.61625,"lng":-0.13314,"z":4,"p":{"P":[51.61625,-0.13314]}},
+    {"id":"arsenal","name":"Arsenal","lat":51.55844,"lng":-0.10745,"z":2,"p":{"P":[51.55844,-0.10745]}},
+    {"id":"baker_street","name":"Baker Street","lat":51.5229,"lng":-0.15714,"z":1,"p":{"B":[51.52314,-0.15755],"Ci":[51.52228,-0.15666],"H":[51.52228,-0.15666],"J":[51.52364,-0.15765],"M":[51.52316,-0.15716]},"terminal":1},
+    {"id":"balham","name":"Balham","lat":51.44364,"lng":-0.15267,"z":3,"p":{"N":[51.44364,-0.15267]}},
+    {"id":"bank","name":"Bank","lat":51.51264,"lng":-0.08957,"z":1,"p":{"C":[51.51334,-0.08899],"N":[51.51184,-0.08803],"W":[51.51275,-0.0917]},"terminal":1},
+    {"id":"barbican","name":"Barbican","lat":51.52022,"lng":-0.09873,"z":1,"p":{"Ci":[51.52022,-0.09873],"H":[51.52022,-0.09873],"M":[51.52022,-0.09873]}},
+    {"id":"barking","name":"Barking","lat":51.54009,"lng":0.07982,"z":4,"p":{"D":[51.5399,0.08021],"H":[51.54028,0.07943]},"terminal":1},
+    {"id":"barkingside","name":"Barkingside","lat":51.58581,"lng":0.08867,"z":4,"p":{"C":[51.58581,0.08867]}},
+    {"id":"barons_court","name":"Barons Court","lat":51.49035,"lng":-0.21448,"z":2,"p":{"D":[51.49035,-0.21448],"P":[51.49035,-0.21449]}},
+    {"id":"battersea_power_station","name":"Battersea Power Station","lat":51.47953,"lng":-0.14314,"z":1,"p":{"N":[51.47953,-0.14314]},"terminal":1},
+    {"id":"bayswater","name":"Bayswater","lat":51.51229,"lng":-0.18825,"z":1,"p":{"Ci":[51.51229,-0.18825],"D":[51.51229,-0.18825]}},
+    {"id":"becontree","name":"Becontree","lat":51.54029,"lng":0.12629,"z":5,"p":{"D":[51.54029,0.12629]}},
+    {"id":"belsize_park","name":"Belsize Park","lat":51.55031,"lng":-0.16464,"z":2,"p":{"N":[51.55031,-0.16464]}},
+    {"id":"bermondsey","name":"Bermondsey","lat":51.49767,"lng":-0.06422,"z":2,"p":{"J":[51.49767,-0.06422]}},
+    {"id":"bethnal_green","name":"Bethnal Green","lat":51.52723,"lng":-0.05447,"z":2,"p":{"C":[51.52723,-0.05447]}},
+    {"id":"blackfriars","name":"Blackfriars","lat":51.51157,"lng":-0.10381,"z":1,"p":{"Ci":[51.51158,-0.10378],"D":[51.51156,-0.10383]}},
+    {"id":"blackhorse_road","name":"Blackhorse Road","lat":51.58686,"lng":-0.04212,"z":3,"p":{"V":[51.58686,-0.04212]}},
+    {"id":"bond_street","name":"Bond Street","lat":51.51442,"lng":-0.14874,"z":1,"p":{"C":[51.51445,-0.14911],"J":[51.51526,-0.14979],"E":[51.51354,-0.14733]}},
+    {"id":"borough","name":"Borough","lat":51.50109,"lng":-0.09341,"z":1,"p":{"N":[51.50109,-0.09341]}},
+    {"id":"boston_manor","name":"Boston Manor","lat":51.49572,"lng":-0.32483,"z":4,"p":{"P":[51.49572,-0.32483]}},
+    {"id":"bounds_green","name":"Bounds Green","lat":51.60738,"lng":-0.12492,"z":[3,4],"p":{"P":[51.60738,-0.12492]}},
+    {"id":"bow_road","name":"Bow Road","lat":51.52689,"lng":-0.0248,"z":2,"p":{"D":[51.52689,-0.0248],"H":[51.52689,-0.0248]}},
+    {"id":"brent_cross","name":"Brent Cross","lat":51.57679,"lng":-0.21394,"z":3,"p":{"N":[51.57679,-0.21394]}},
+    {"id":"brixton","name":"Brixton","lat":51.46263,"lng":-0.1147,"z":2,"p":{"V":[51.46263,-0.1147]}},
+    {"id":"bromley_by_bow","name":"Bromley-by-Bow","lat":51.52468,"lng":-0.01241,"z":[2,3],"p":{"D":[51.52468,-0.01241],"H":[51.52468,-0.01241]}},
+    {"id":"buckhurst_hill","name":"Buckhurst Hill","lat":51.62595,"lng":0.04682,"z":5,"p":{"C":[51.62595,0.04682]}},
+    {"id":"burnt_oak","name":"Burnt Oak","lat":51.60285,"lng":-0.2641,"z":4,"p":{"N":[51.60285,-0.2641]}},
+    {"id":"caledonian_road","name":"Caledonian Road","lat":51.54845,"lng":-0.1183,"z":2,"p":{"P":[51.54845,-0.1183]}},
+    {"id":"camden_town","name":"Camden Town","lat":51.53954,"lng":-0.14259,"z":2,"p":{"N":[51.53954,-0.14259]}},
+    {"id":"canada_water","name":"Canada Water","lat":51.49791,"lng":-0.04968,"z":2,"p":{"J":[51.49791,-0.04968]}},
+    {"id":"canary_wharf","name":"Canary Wharf","lat":51.50473,"lng":-0.01757,"z":2,"p":{"J":[51.50334,-0.01767],"E":[51.50612,-0.01747]},"major":1},
+    {"id":"canning_town","name":"Canning Town","lat":51.51383,"lng":0.00834,"z":[2,3],"p":{"J":[51.51383,0.00834]}},
+    {"id":"cannon_street","name":"Cannon Street","lat":51.51149,"lng":-0.0903,"z":1,"p":{"Ci":[51.51149,-0.0903],"D":[51.51149,-0.0903]}},
+    {"id":"canons_park","name":"Canons Park","lat":51.60841,"lng":-0.2949,"z":5,"p":{"J":[51.60841,-0.2949]}},
+    {"id":"chadwell_heath","name":"Chadwell Heath","lat":51.56798,"lng":0.12801,"z":5,"p":{"E":[51.56798,0.12801]}},
+    {"id":"chalfont_and_latimer","name":"Chalfont & Latimer","lat":51.66806,"lng":-0.56091,"z":8,"p":{"M":[51.66806,-0.56091]}},
+    {"id":"chalk_farm","name":"Chalk Farm","lat":51.5442,"lng":-0.15347,"z":2,"p":{"N":[51.5442,-0.15347]}},
+    {"id":"chancery_lane","name":"Chancery Lane","lat":51.51826,"lng":-0.11306,"z":1,"p":{"C":[51.51826,-0.11306]}},
+    {"id":"charing_cross","name":"Charing Cross","lat":51.50809,"lng":-0.1269,"z":1,"p":{"B":[51.50748,-0.12833],"N":[51.50871,-0.12547]}},
+    {"id":"chesham","name":"Chesham","lat":51.7054,"lng":-0.6109,"z":9,"p":{"M":[51.7054,-0.6109]},"terminal":1},
+    {"id":"chigwell","name":"Chigwell","lat":51.6177,"lng":0.07552,"z":4,"p":{"C":[51.6177,0.07552]}},
+    {"id":"chiswick_park","name":"Chiswick Park","lat":51.49464,"lng":-0.26808,"z":3,"p":{"D":[51.49464,-0.26808]}},
+    {"id":"chorleywood","name":"Chorleywood","lat":51.65417,"lng":-0.51831,"z":7,"p":{"M":[51.65417,-0.51831]}},
+    {"id":"clapham_common","name":"Clapham Common","lat":51.4621,"lng":-0.13726,"z":2,"p":{"N":[51.4621,-0.13726]}},
+    {"id":"clapham_north","name":"Clapham North","lat":51.46566,"lng":-0.12943,"z":2,"p":{"N":[51.46566,-0.12943]}},
+    {"id":"clapham_south","name":"Clapham South","lat":51.45302,"lng":-0.14743,"z":[2,3],"p":{"N":[51.45302,-0.14743]}},
+    {"id":"cockfosters","name":"Cockfosters","lat":51.65155,"lng":-0.14899,"z":5,"p":{"P":[51.65155,-0.14899]},"terminal":1},
+    {"id":"colindale","name":"Colindale","lat":51.59548,"lng":-0.25004,"z":4,"p":{"N":[51.59548,-0.25004]}},
+    {"id":"colliers_wood","name":"Colliers Wood","lat":51.41835,"lng":-0.17779,"z":3,"p":{"N":[51.41835,-0.17779]}},
+    {"id":"covent_garden","name":"Covent Garden","lat":51.51309,"lng":-0.12427,"z":1,"p":{"P":[51.51309,-0.12427]}},
+    {"id":"croxley","name":"Croxley","lat":51.64758,"lng":-0.44103,"z":7,"p":{"M":[51.64758,-0.44103]}},
+    {"id":"custom_house","name":"Custom House","lat":51.50982,"lng":0.02706,"z":3,"p":{"E":[51.50982,0.02706]}},
+    {"id":"dagenham_east","name":"Dagenham East","lat":51.54404,"lng":0.16479,"z":5,"p":{"D":[51.54404,0.16479]}},
+    {"id":"dagenham_heathway","name":"Dagenham Heathway","lat":51.5416,"lng":0.14579,"z":5,"p":{"D":[51.5416,0.14579]}},
+    {"id":"debden","name":"Debden","lat":51.64528,"lng":0.08358,"z":6,"p":{"C":[51.64528,0.08358]}},
+    {"id":"dollis_hill","name":"Dollis Hill","lat":51.55203,"lng":-0.23925,"z":3,"p":{"J":[51.55203,-0.23925]}},
+    {"id":"ealing_broadway","name":"Ealing Broadway","lat":51.51501,"lng":-0.30089,"z":3,"p":{"C":[51.51497,-0.30096],"D":[51.51521,-0.30137],"E":[51.51484,-0.30035]},"major":1,"terminal":1},
+    {"id":"ealing_common","name":"Ealing Common","lat":51.51023,"lng":-0.28823,"z":3,"p":{"D":[51.51023,-0.28823],"P":[51.51023,-0.28823]}},
+    {"id":"earls_court","name":"Earl's Court","lat":51.49157,"lng":-0.19404,"z":[1,2],"p":{"D":[51.49154,-0.19401],"P":[51.49159,-0.19408]},"major":1},
+    {"id":"east_acton","name":"East Acton","lat":51.51735,"lng":-0.24814,"z":2,"p":{"C":[51.51735,-0.24814]}},
+    {"id":"east_finchley","name":"East Finchley","lat":51.58725,"lng":-0.16492,"z":3,"p":{"N":[51.58725,-0.16492]}},
+    {"id":"east_ham","name":"East Ham","lat":51.53935,"lng":0.05239,"z":[3,4],"p":{"D":[51.53935,0.05239],"H":[51.53935,0.05239]}},
+    {"id":"east_putney","name":"East Putney","lat":51.45869,"lng":-0.21133,"z":[2,3],"p":{"D":[51.45869,-0.21133]}},
+    {"id":"eastcote","name":"Eastcote","lat":51.57659,"lng":-0.39706,"z":5,"p":{"M":[51.57659,-0.39706],"P":[51.57659,-0.39706]}},
+    {"id":"edgware","name":"Edgware","lat":51.61353,"lng":-0.27465,"z":5,"p":{"N":[51.61353,-0.27465]},"terminal":1},
+    {"id":"edgware_road_bakerloo","name":"Edgware Road (Bakerloo)","lat":51.52046,"lng":-0.17028,"z":1,"p":{"B":[51.52046,-0.17028]}},
+    {"id":"edgware_road_circle_line","name":"Edgware Road (Circle line)","lat":51.52019,"lng":-0.1668,"z":1,"p":{"Ci":[51.52029,-0.16648],"D":[51.52006,-0.16716],"H":[51.52021,-0.16675]},"terminal":1},
+    {"id":"elephant_and_castle","name":"Elephant & Castle","lat":51.49539,"lng":-0.10089,"z":[1,2],"p":{"B":[51.49584,-0.1012],"N":[51.49494,-0.10057]},"terminal":1},
+    {"id":"elm_park","name":"Elm Park","lat":51.54955,"lng":0.1973,"z":6,"p":{"D":[51.54955,0.1973]}},
+    {"id":"embankment","name":"Embankment","lat":51.50714,"lng":-0.12243,"z":1,"p":{"B":[51.50661,-0.12301],"Ci":[51.50729,-0.12234],"D":[51.50729,-0.12234],"N":[51.50738,-0.12201]}},
+    {"id":"epping","name":"Epping","lat":51.69351,"lng":0.11386,"z":6,"p":{"C":[51.69351,0.11386]},"terminal":1},
+    {"id":"euston","name":"Euston","lat":51.52848,"lng":-0.13299,"z":1,"p":{"N":[51.52846,-0.13348],"V":[51.52849,-0.13251]}},
+    {"id":"euston_square","name":"Euston Square","lat":51.52583,"lng":-0.13519,"z":1,"p":{"Ci":[51.52583,-0.13519],"H":[51.52583,-0.13519],"M":[51.52583,-0.13519]}},
+    {"id":"fairlop","name":"Fairlop","lat":51.59595,"lng":0.09113,"z":4,"p":{"C":[51.59595,0.09113]}},
+    {"id":"farringdon","name":"Farringdon","lat":51.52057,"lng":-0.10449,"z":1,"p":{"Ci":[51.52082,-0.10523],"H":[51.52082,-0.10523],"M":[51.52082,-0.10523],"E":[51.51983,-0.10226]}},
+    {"id":"finchley_central","name":"Finchley Central","lat":51.60093,"lng":-0.1926,"z":4,"p":{"N":[51.60093,-0.1926]}},
+    {"id":"finchley_road","name":"Finchley Road","lat":51.54725,"lng":-0.18079,"z":2,"p":{"J":[51.54725,-0.18079],"M":[51.54725,-0.18078]}},
+    {"id":"finsbury_park","name":"Finsbury Park","lat":51.5644,"lng":-0.10667,"z":2,"p":{"P":[51.56421,-0.1068],"V":[51.56458,-0.10653]}},
+    {"id":"forest_gate","name":"Forest Gate","lat":51.54928,"lng":0.02385,"z":3,"p":{"E":[51.54928,0.02385]}},
+    {"id":"fulham_broadway","name":"Fulham Broadway","lat":51.4809,"lng":-0.19439,"z":2,"p":{"D":[51.4809,-0.19439]}},
+    {"id":"gants_hill","name":"Gants Hill","lat":51.57653,"lng":0.06483,"z":4,"p":{"C":[51.57653,0.06483]}},
+    {"id":"gidea_park","name":"Gidea Park","lat":51.58195,"lng":0.20596,"z":6,"p":{"E":[51.58195,0.20596]}},
+    {"id":"gloucester_road","name":"Gloucester Road","lat":51.49456,"lng":-0.18371,"z":1,"p":{"Ci":[51.49462,-0.18368],"D":[51.49461,-0.18369],"P":[51.49444,-0.18376]}},
+    {"id":"golders_green","name":"Golders Green","lat":51.57229,"lng":-0.19395,"z":3,"p":{"N":[51.57229,-0.19395]}},
+    {"id":"goldhawk_road","name":"Goldhawk Road","lat":51.50157,"lng":-0.22653,"z":2,"p":{"Ci":[51.50157,-0.22653],"H":[51.50157,-0.22653]}},
+    {"id":"goodge_street","name":"Goodge Street","lat":51.52053,"lng":-0.13429,"z":1,"p":{"N":[51.52053,-0.13429]}},
+    {"id":"goodmayes","name":"Goodmayes","lat":51.56584,"lng":0.11221,"z":4,"p":{"E":[51.56584,0.11221]}},
+    {"id":"grange_hill","name":"Grange Hill","lat":51.61315,"lng":0.09253,"z":4,"p":{"C":[51.61315,0.09253]}},
+    {"id":"great_portland_street","name":"Great Portland Street","lat":51.52381,"lng":-0.14388,"z":1,"p":{"Ci":[51.52381,-0.14388],"H":[51.52381,-0.14388],"M":[51.52381,-0.14388]}},
+    {"id":"green_park","name":"Green Park","lat":51.50659,"lng":-0.1415,"z":1,"p":{"J":[51.50617,-0.14098],"P":[51.50741,-0.14146],"V":[51.50619,-0.14206]}},
+    {"id":"greenford","name":"Greenford","lat":51.54231,"lng":-0.34561,"z":4,"p":{"C":[51.54231,-0.34561]}},
+    {"id":"gunnersbury","name":"Gunnersbury","lat":51.49131,"lng":-0.27558,"z":3,"p":{"D":[51.49131,-0.27558]}},
+    {"id":"hainault","name":"Hainault","lat":51.60331,"lng":0.09343,"z":4,"p":{"C":[51.60331,0.09343]},"terminal":1},
+    {"id":"hammersmith_district_and_piccadilly","name":"Hammersmith (District & Piccadilly)","lat":51.49221,"lng":-0.2233,"z":2,"p":{"D":[51.49221,-0.2233],"P":[51.49221,-0.2233]}},
+    {"id":"hammersmith_handc_line","name":"Hammersmith (H&C line)","lat":51.4937,"lng":-0.22497,"z":2,"p":{"Ci":[51.4937,-0.22497],"H":[51.4937,-0.22497]},"terminal":1},
+    {"id":"hampstead","name":"Hampstead","lat":51.55658,"lng":-0.17841,"z":[2,3],"p":{"N":[51.55658,-0.17841]}},
+    {"id":"hanger_lane","name":"Hanger Lane","lat":51.53024,"lng":-0.2933,"z":3,"p":{"C":[51.53024,-0.2933]}},
+    {"id":"hanwell","name":"Hanwell","lat":51.51179,"lng":-0.33872,"z":4,"p":{"E":[51.51179,-0.33872]}},
+    {"id":"harlesden","name":"Harlesden","lat":51.53651,"lng":-0.25815,"z":3,"p":{"B":[51.53651,-0.25815]}},
+    {"id":"harold_wood","name":"Harold Wood","lat":51.59326,"lng":0.23415,"z":6,"p":{"E":[51.59326,0.23415]},"terminal":1},
+    {"id":"harrow_and_wealdstone","name":"Harrow & Wealdstone","lat":51.59183,"lng":-0.33443,"z":5,"p":{"B":[51.59183,-0.33443]},"terminal":1},
+    {"id":"harrow_on_the_hill","name":"Harrow-on-the-Hill","lat":51.57923,"lng":-0.33621,"z":5,"p":{"M":[51.57923,-0.33621]},"major":1},
+    {"id":"hatton_cross","name":"Hatton Cross","lat":51.46654,"lng":-0.42396,"z":[5,6],"p":{"P":[51.46654,-0.42396]}},
+    {"id":"hayes_and_harlington","name":"Hayes & Harlington","lat":51.50297,"lng":-0.41881,"z":5,"p":{"E":[51.50297,-0.41881]}},
+    {"id":"heathrow_terminal_4","name":"Heathrow Terminal 4","lat":51.45909,"lng":-0.44548,"z":6,"p":{"P":[51.45878,-0.44541],"E":[51.4594,-0.44555]},"terminal":1},
+    {"id":"heathrow_terminal_5","name":"Heathrow Terminal 5","lat":51.47236,"lng":-0.48774,"z":6,"p":{"P":[51.47251,-0.48774],"E":[51.47222,-0.48773]},"terminal":1},
+    {"id":"heathrow_terminals_2_and_3","name":"Heathrow Terminals 2 & 3","lat":51.47153,"lng":-0.45384,"z":6,"p":{"P":[51.47146,-0.4527],"E":[51.4716,-0.45499]},"major":1},
+    {"id":"hendon_central","name":"Hendon Central","lat":51.58317,"lng":-0.22627,"z":[3,4],"p":{"N":[51.58317,-0.22627]}},
+    {"id":"high_barnet","name":"High Barnet","lat":51.6504,"lng":-0.1939,"z":5,"p":{"N":[51.6504,-0.1939]},"terminal":1},
+    {"id":"high_street_kensington","name":"High Street Kensington","lat":51.50016,"lng":-0.19194,"z":1,"p":{"Ci":[51.50018,-0.19189],"D":[51.50015,-0.19198]}},
+    {"id":"highbury_and_islington","name":"Highbury & Islington","lat":51.54717,"lng":-0.10359,"z":2,"p":{"V":[51.54717,-0.10359]}},
+    {"id":"highgate","name":"Highgate","lat":51.57787,"lng":-0.14652,"z":3,"p":{"N":[51.57787,-0.14652]}},
+    {"id":"hillingdon","name":"Hillingdon","lat":51.55362,"lng":-0.45041,"z":6,"p":{"M":[51.55362,-0.45041],"P":[51.55362,-0.45041]}},
+    {"id":"holborn","name":"Holborn","lat":51.51744,"lng":-0.11991,"z":1,"p":{"C":[51.51767,-0.11933],"P":[51.51721,-0.12049]}},
+    {"id":"holland_park","name":"Holland Park","lat":51.50722,"lng":-0.20539,"z":2,"p":{"C":[51.50722,-0.20539]}},
+    {"id":"holloway_road","name":"Holloway Road","lat":51.55281,"lng":-0.11308,"z":2,"p":{"P":[51.55281,-0.11308]}},
+    {"id":"hornchurch","name":"Hornchurch","lat":51.55385,"lng":0.21801,"z":6,"p":{"D":[51.55385,0.21801]}},
+    {"id":"hounslow_central","name":"Hounslow Central","lat":51.47133,"lng":-0.36581,"z":4,"p":{"P":[51.47133,-0.36581]}},
+    {"id":"hounslow_east","name":"Hounslow East","lat":51.47327,"lng":-0.35631,"z":4,"p":{"P":[51.47327,-0.35631]}},
+    {"id":"hounslow_west","name":"Hounslow West","lat":51.47363,"lng":-0.38564,"z":5,"p":{"P":[51.47363,-0.38564]}},
+    {"id":"hyde_park_corner","name":"Hyde Park Corner","lat":51.50273,"lng":-0.15429,"z":1,"p":{"P":[51.50273,-0.15429]}},
+    {"id":"ickenham","name":"Ickenham","lat":51.5615,"lng":-0.44237,"z":6,"p":{"M":[51.5615,-0.44237],"P":[51.5615,-0.44237]}},
+    {"id":"ilford","name":"Ilford","lat":51.55889,"lng":0.06838,"z":4,"p":{"E":[51.55889,0.06838]}},
+    {"id":"kennington","name":"Kennington","lat":51.48817,"lng":-0.10608,"z":[1,2],"p":{"N":[51.48817,-0.10608]},"terminal":1},
+    {"id":"kensal_green","name":"Kensal Green","lat":51.53063,"lng":-0.22397,"z":2,"p":{"B":[51.53063,-0.22397]}},
+    {"id":"kentish_town","name":"Kentish Town","lat":51.55033,"lng":-0.14067,"z":2,"p":{"N":[51.55033,-0.14067]}},
+    {"id":"kenton","name":"Kenton","lat":51.58153,"lng":-0.31664,"z":4,"p":{"B":[51.58153,-0.31664]}},
+    {"id":"kew_gardens","name":"Kew Gardens","lat":51.47706,"lng":-0.28498,"z":[3,4],"p":{"D":[51.47706,-0.28498]}},
+    {"id":"kilburn","name":"Kilburn","lat":51.54693,"lng":-0.20479,"z":2,"p":{"J":[51.54693,-0.20479]}},
+    {"id":"kilburn_park","name":"Kilburn Park","lat":51.53503,"lng":-0.19425,"z":2,"p":{"B":[51.53503,-0.19425]}},
+    {"id":"kings_cross_st_pancras","name":"King's Cross St. Pancras","lat":51.5303,"lng":-0.12383,"z":1,"p":{"Ci":[51.52968,-0.12461],"H":[51.52968,-0.12461],"M":[51.52968,-0.12461],"N":[51.53063,-0.12434],"P":[51.53111,-0.12312],"V":[51.53104,-0.12168]},"major":1},
+    {"id":"kingsbury","name":"Kingsbury","lat":51.58426,"lng":-0.27874,"z":4,"p":{"J":[51.58426,-0.27874]}},
+    {"id":"knightsbridge","name":"Knightsbridge","lat":51.50133,"lng":-0.16144,"z":1,"p":{"P":[51.50133,-0.16144]}},
+    {"id":"ladbroke_grove","name":"Ladbroke Grove","lat":51.51726,"lng":-0.2111,"z":2,"p":{"Ci":[51.51726,-0.2111],"H":[51.51726,-0.2111]}},
+    {"id":"lambeth_north","name":"Lambeth North","lat":51.49855,"lng":-0.11151,"z":1,"p":{"B":[51.49855,-0.11151]}},
+    {"id":"lancaster_gate","name":"Lancaster Gate","lat":51.51175,"lng":-0.17509,"z":1,"p":{"C":[51.51175,-0.17509]}},
+    {"id":"latimer_road","name":"Latimer Road","lat":51.51328,"lng":-0.21805,"z":2,"p":{"Ci":[51.51328,-0.21805],"H":[51.51328,-0.21805]}},
+    {"id":"leicester_square","name":"Leicester Square","lat":51.51174,"lng":-0.12801,"z":1,"p":{"N":[51.5119,-0.12843],"P":[51.51157,-0.1276]}},
+    {"id":"leyton","name":"Leyton","lat":51.55701,"lng":-0.00484,"z":3,"p":{"C":[51.55701,-0.00484]}},
+    {"id":"leytonstone","name":"Leytonstone","lat":51.56857,"lng":0.00844,"z":[3,4],"p":{"C":[51.56857,0.00844]}},
+    {"id":"liverpool_street","name":"Liverpool Street","lat":51.51754,"lng":-0.08327,"z":1,"p":{"C":[51.5184,-0.08224],"Ci":[51.5172,-0.08255],"H":[51.5172,-0.08255],"M":[51.5172,-0.08255],"E":[51.51769,-0.08647]}},
+    {"id":"london_bridge","name":"London Bridge","lat":51.50552,"lng":-0.08824,"z":1,"p":{"J":[51.50499,-0.08793],"N":[51.50606,-0.08856]}},
+    {"id":"loughton","name":"Loughton","lat":51.64134,"lng":0.05565,"z":6,"p":{"C":[51.64134,0.05565]}},
+    {"id":"maida_vale","name":"Maida Vale","lat":51.52982,"lng":-0.18592,"z":2,"p":{"B":[51.52982,-0.18592]}},
+    {"id":"manor_house","name":"Manor House","lat":51.57033,"lng":-0.09658,"z":[2,3],"p":{"P":[51.57033,-0.09658]}},
+    {"id":"manor_park","name":"Manor Park","lat":51.5521,"lng":0.04484,"z":[3,4],"p":{"E":[51.5521,0.04484]}},
+    {"id":"mansion_house","name":"Mansion House","lat":51.51188,"lng":-0.09522,"z":1,"p":{"Ci":[51.51188,-0.09522],"D":[51.51188,-0.09522]}},
+    {"id":"marble_arch","name":"Marble Arch","lat":51.51346,"lng":-0.15827,"z":1,"p":{"C":[51.51346,-0.15827]}},
+    {"id":"maryland","name":"Maryland","lat":51.54596,"lng":0.00593,"z":3,"p":{"E":[51.54596,0.00593]}},
+    {"id":"marylebone","name":"Marylebone","lat":51.52226,"lng":-0.16359,"z":1,"p":{"B":[51.52226,-0.16359]}},
+    {"id":"mile_end","name":"Mile End","lat":51.52534,"lng":-0.03344,"z":2,"p":{"C":[51.52535,-0.03345],"D":[51.52534,-0.03343],"H":[51.52534,-0.03343]}},
+    {"id":"mill_hill_east","name":"Mill Hill East","lat":51.60826,"lng":-0.21015,"z":4,"p":{"N":[51.60826,-0.21015]},"terminal":1},
+    {"id":"monument","name":"Monument","lat":51.5107,"lng":-0.08604,"z":1,"p":{"Ci":[51.5107,-0.08604],"D":[51.5107,-0.08604]}},
+    {"id":"moor_park","name":"Moor Park","lat":51.62978,"lng":-0.43213,"z":[6,7],"p":{"M":[51.62978,-0.43213]}},
+    {"id":"moorgate","name":"Moorgate","lat":51.51854,"lng":-0.08951,"z":1,"p":{"Ci":[51.51854,-0.09],"H":[51.51854,-0.09],"M":[51.51854,-0.09],"N":[51.51855,-0.08805]}},
+    {"id":"morden","name":"Morden","lat":51.40239,"lng":-0.19481,"z":4,"p":{"N":[51.40239,-0.19481]},"terminal":1},
+    {"id":"mornington_crescent","name":"Mornington Crescent","lat":51.5344,"lng":-0.13846,"z":2,"p":{"N":[51.5344,-0.13846]}},
+    {"id":"neasden","name":"Neasden","lat":51.5544,"lng":-0.2511,"z":3,"p":{"J":[51.5544,-0.2511]}},
+    {"id":"newbury_park","name":"Newbury Park","lat":51.57548,"lng":0.08997,"z":4,"p":{"C":[51.57548,0.08997]}},
+    {"id":"nine_elms","name":"Nine Elms","lat":51.48015,"lng":-0.12951,"z":1,"p":{"N":[51.48015,-0.12951]}},
+    {"id":"north_acton","name":"North Acton","lat":51.52368,"lng":-0.26002,"z":[2,3],"p":{"C":[51.52368,-0.26002]}},
+    {"id":"north_ealing","name":"North Ealing","lat":51.51749,"lng":-0.28875,"z":3,"p":{"P":[51.51749,-0.28875]}},
+    {"id":"north_greenwich","name":"North Greenwich","lat":51.50073,"lng":0.00484,"z":[2,3],"p":{"J":[51.50073,0.00484]}},
+    {"id":"north_harrow","name":"North Harrow","lat":51.58513,"lng":-0.36309,"z":5,"p":{"M":[51.58513,-0.36309]}},
+    {"id":"north_wembley","name":"North Wembley","lat":51.56241,"lng":-0.30388,"z":4,"p":{"B":[51.56241,-0.30388]}},
+    {"id":"northfields","name":"Northfields","lat":51.49967,"lng":-0.31316,"z":3,"p":{"P":[51.49967,-0.31316]}},
+    {"id":"northolt","name":"Northolt","lat":51.54842,"lng":-0.36945,"z":5,"p":{"C":[51.54842,-0.36945]}},
+    {"id":"northwick_park","name":"Northwick Park","lat":51.57841,"lng":-0.31748,"z":4,"p":{"M":[51.57841,-0.31748]}},
+    {"id":"northwood","name":"Northwood","lat":51.61079,"lng":-0.42366,"z":6,"p":{"M":[51.61079,-0.42366]}},
+    {"id":"northwood_hills","name":"Northwood Hills","lat":51.60019,"lng":-0.40851,"z":6,"p":{"M":[51.60019,-0.40851]}},
+    {"id":"notting_hill_gate","name":"Notting Hill Gate","lat":51.50879,"lng":-0.19624,"z":[1,2],"p":{"C":[51.50898,-0.19673],"Ci":[51.5087,-0.19599],"D":[51.5087,-0.19599]}},
+    {"id":"oakwood","name":"Oakwood","lat":51.64761,"lng":-0.13185,"z":5,"p":{"P":[51.64761,-0.13185]}},
+    {"id":"old_street","name":"Old Street","lat":51.52532,"lng":-0.08757,"z":1,"p":{"N":[51.52532,-0.08757]}},
+    {"id":"osterley","name":"Osterley","lat":51.48114,"lng":-0.3523,"z":4,"p":{"P":[51.48114,-0.3523]}},
+    {"id":"oval","name":"Oval","lat":51.48182,"lng":-0.11243,"z":2,"p":{"N":[51.48182,-0.11243]}},
+    {"id":"oxford_circus","name":"Oxford Circus","lat":51.51557,"lng":-0.14161,"z":1,"p":{"B":[51.51566,-0.142],"C":[51.51541,-0.14079],"V":[51.51564,-0.14203]}},
+    {"id":"paddington","name":"Paddington","lat":51.51594,"lng":-0.17597,"z":1,"p":{"B":[51.51639,-0.17567],"Ci":[51.51543,-0.17546],"D":[51.51543,-0.17546],"E":[51.51651,-0.17728]},"terminal":1},
+    {"id":"paddington_handc_line","name":"Paddington (H&C line)","lat":51.51846,"lng":-0.17862,"z":1,"p":{"Ci":[51.51846,-0.17862],"H":[51.51846,-0.17862]}},
+    {"id":"park_royal","name":"Park Royal","lat":51.5268,"lng":-0.28408,"z":3,"p":{"P":[51.5268,-0.28408]}},
+    {"id":"parsons_green","name":"Parsons Green","lat":51.47518,"lng":-0.20136,"z":2,"p":{"D":[51.47518,-0.20136]}},
+    {"id":"perivale","name":"Perivale","lat":51.53657,"lng":-0.32292,"z":4,"p":{"C":[51.53657,-0.32292]}},
+    {"id":"piccadilly_circus","name":"Piccadilly Circus","lat":51.50991,"lng":-0.1344,"z":1,"p":{"B":[51.51003,-0.13443],"P":[51.5098,-0.13438]}},
+    {"id":"pimlico","name":"Pimlico","lat":51.48918,"lng":-0.13523,"z":1,"p":{"V":[51.48918,-0.13523]}},
+    {"id":"pinner","name":"Pinner","lat":51.59281,"lng":-0.381,"z":5,"p":{"M":[51.59281,-0.381]}},
+    {"id":"plaistow","name":"Plaistow","lat":51.53122,"lng":0.01695,"z":3,"p":{"D":[51.53122,0.01695],"H":[51.53122,0.01695]}},
+    {"id":"preston_road","name":"Preston Road","lat":51.57228,"lng":-0.29577,"z":4,"p":{"M":[51.57228,-0.29577]}},
+    {"id":"putney_bridge","name":"Putney Bridge","lat":51.46835,"lng":-0.20879,"z":2,"p":{"D":[51.46835,-0.20879]}},
+    {"id":"queens_park","name":"Queen's Park","lat":51.534,"lng":-0.20558,"z":2,"p":{"B":[51.534,-0.20558]}},
+    {"id":"queensbury","name":"Queensbury","lat":51.59416,"lng":-0.28612,"z":4,"p":{"J":[51.59416,-0.28612]}},
+    {"id":"queensway","name":"Queensway","lat":51.51025,"lng":-0.18724,"z":1,"p":{"C":[51.51025,-0.18724]}},
+    {"id":"ravenscourt_park","name":"Ravenscourt Park","lat":51.49412,"lng":-0.23565,"z":2,"p":{"D":[51.49412,-0.23565]}},
+    {"id":"rayners_lane","name":"Rayners Lane","lat":51.57518,"lng":-0.37131,"z":5,"p":{"M":[51.57518,-0.37131],"P":[51.57518,-0.37131]}},
+    {"id":"redbridge","name":"Redbridge","lat":51.57631,"lng":0.04544,"z":4,"p":{"C":[51.57631,0.04544]}},
+    {"id":"regents_park","name":"Regent's Park","lat":51.52365,"lng":-0.1466,"z":1,"p":{"B":[51.52365,-0.1466]}},
+    {"id":"richmond","name":"Richmond","lat":51.46334,"lng":-0.30113,"z":4,"p":{"D":[51.46334,-0.30113]},"terminal":1},
+    {"id":"rickmansworth","name":"Rickmansworth","lat":51.64022,"lng":-0.47358,"z":7,"p":{"M":[51.64022,-0.47358]}},
+    {"id":"roding_valley","name":"Roding Valley","lat":51.6171,"lng":0.04389,"z":4,"p":{"C":[51.6171,0.04389]}},
+    {"id":"romford","name":"Romford","lat":51.5746,"lng":0.18194,"z":6,"p":{"E":[51.5746,0.18194]}},
+    {"id":"royal_oak","name":"Royal Oak","lat":51.51903,"lng":-0.1875,"z":2,"p":{"Ci":[51.51903,-0.1875],"H":[51.51903,-0.1875]}},
+    {"id":"ruislip","name":"Ruislip","lat":51.57141,"lng":-0.42134,"z":6,"p":{"M":[51.57141,-0.42134],"P":[51.57141,-0.42134]}},
+    {"id":"ruislip_gardens","name":"Ruislip Gardens","lat":51.56069,"lng":-0.41049,"z":5,"p":{"C":[51.56069,-0.41049]}},
+    {"id":"ruislip_manor","name":"Ruislip Manor","lat":51.57342,"lng":-0.41173,"z":6,"p":{"M":[51.57342,-0.41173],"P":[51.57342,-0.41173]}},
+    {"id":"russell_square","name":"Russell Square","lat":51.5231,"lng":-0.12425,"z":1,"p":{"P":[51.5231,-0.12425]}},
+    {"id":"seven_kings","name":"Seven Kings","lat":51.56388,"lng":0.0954,"z":4,"p":{"E":[51.56388,0.0954]}},
+    {"id":"seven_sisters","name":"Seven Sisters","lat":51.58294,"lng":-0.07349,"z":3,"p":{"V":[51.58294,-0.07349]}},
+    {"id":"shepherds_bush","name":"Shepherd's Bush","lat":51.50445,"lng":-0.21778,"z":2,"p":{"C":[51.50445,-0.21778]}},
+    {"id":"shepherds_bush_market","name":"Shepherd's Bush Market","lat":51.50633,"lng":-0.22626,"z":2,"p":{"Ci":[51.50633,-0.22626],"H":[51.50633,-0.22626]}},
+    {"id":"sloane_square","name":"Sloane Square","lat":51.49216,"lng":-0.15555,"z":1,"p":{"Ci":[51.49216,-0.15555],"D":[51.49216,-0.15555]}},
+    {"id":"snaresbrook","name":"Snaresbrook","lat":51.58015,"lng":0.0211,"z":4,"p":{"C":[51.58015,0.0211]}},
+    {"id":"south_ealing","name":"South Ealing","lat":51.50087,"lng":-0.30785,"z":3,"p":{"P":[51.50087,-0.30785]}},
+    {"id":"south_harrow","name":"South Harrow","lat":51.56465,"lng":-0.35222,"z":5,"p":{"P":[51.56465,-0.35222]}},
+    {"id":"south_kensington","name":"South Kensington","lat":51.49409,"lng":-0.17313,"z":1,"p":{"Ci":[51.49408,-0.17253],"D":[51.49408,-0.17253],"P":[51.49411,-0.17432]}},
+    {"id":"south_kenton","name":"South Kenton","lat":51.57025,"lng":-0.30849,"z":4,"p":{"B":[51.57025,-0.30849]}},
+    {"id":"south_ruislip","name":"South Ruislip","lat":51.55698,"lng":-0.39934,"z":5,"p":{"C":[51.55698,-0.39934]}},
+    {"id":"south_wimbledon","name":"South Wimbledon","lat":51.41516,"lng":-0.19266,"z":[3,4],"p":{"N":[51.41516,-0.19266]}},
+    {"id":"south_woodford","name":"South Woodford","lat":51.59192,"lng":0.02746,"z":4,"p":{"C":[51.59192,0.02746]}},
+    {"id":"southall","name":"Southall","lat":51.50619,"lng":-0.37733,"z":4,"p":{"E":[51.50619,-0.37733]}},
+    {"id":"southfields","name":"Southfields","lat":51.44569,"lng":-0.20662,"z":3,"p":{"D":[51.44569,-0.20662]}},
+    {"id":"southgate","name":"Southgate","lat":51.63199,"lng":-0.12823,"z":4,"p":{"P":[51.63199,-0.12823]}},
+    {"id":"southwark","name":"Southwark","lat":51.50421,"lng":-0.10589,"z":1,"p":{"J":[51.50421,-0.10589]}},
+    {"id":"st_jamess_park","name":"St. James's Park","lat":51.49927,"lng":-0.13461,"z":1,"p":{"Ci":[51.49927,-0.13461],"D":[51.49927,-0.13461]}},
+    {"id":"st_johns_wood","name":"St. John's Wood","lat":51.53544,"lng":-0.17433,"z":2,"p":{"J":[51.53544,-0.17433]}},
+    {"id":"st_pauls","name":"St. Paul's","lat":51.51552,"lng":-0.09914,"z":1,"p":{"C":[51.51552,-0.09914]}},
+    {"id":"stamford_brook","name":"Stamford Brook","lat":51.49498,"lng":-0.24613,"z":2,"p":{"D":[51.49498,-0.24613]}},
+    {"id":"stanmore","name":"Stanmore","lat":51.61905,"lng":-0.3026,"z":5,"p":{"J":[51.61905,-0.3026]}},
+    {"id":"stepney_green","name":"Stepney Green","lat":51.5217,"lng":-0.04673,"z":2,"p":{"D":[51.5217,-0.04673],"H":[51.5217,-0.04673]}},
+    {"id":"stockwell","name":"Stockwell","lat":51.47169,"lng":-0.12308,"z":2,"p":{"N":[51.47179,-0.12297],"V":[51.47159,-0.12319]}},
+    {"id":"stonebridge_park","name":"Stonebridge Park","lat":51.54413,"lng":-0.27628,"z":3,"p":{"B":[51.54413,-0.27628]}},
+    {"id":"stratford","name":"Stratford","lat":51.54131,"lng":-0.00364,"z":[2,3],"p":{"C":[51.54153,-0.00367],"J":[51.54093,-0.00333],"E":[51.54148,-0.00392]},"major":1},
+    {"id":"sudbury_hill","name":"Sudbury Hill","lat":51.55696,"lng":-0.3366,"z":4,"p":{"P":[51.55696,-0.3366]}},
+    {"id":"sudbury_town","name":"Sudbury Town","lat":51.55072,"lng":-0.31556,"z":4,"p":{"P":[51.55072,-0.31556]}},
+    {"id":"swiss_cottage","name":"Swiss Cottage","lat":51.54362,"lng":-0.17495,"z":2,"p":{"J":[51.54362,-0.17495]}},
+    {"id":"temple","name":"Temple","lat":51.51101,"lng":-0.11429,"z":1,"p":{"Ci":[51.51101,-0.11429],"D":[51.51101,-0.11429]}},
+    {"id":"theydon_bois","name":"Theydon Bois","lat":51.67172,"lng":0.1033,"z":6,"p":{"C":[51.67172,0.1033]}},
+    {"id":"tooting_bec","name":"Tooting Bec","lat":51.43575,"lng":-0.15944,"z":3,"p":{"N":[51.43575,-0.15944]}},
+    {"id":"tooting_broadway","name":"Tooting Broadway","lat":51.42769,"lng":-0.16836,"z":3,"p":{"N":[51.42769,-0.16836]}},
+    {"id":"tottenham_court_road","name":"Tottenham Court Road","lat":51.51576,"lng":-0.13152,"z":1,"p":{"C":[51.51626,-0.13189],"N":[51.51566,-0.13013],"E":[51.51537,-0.13255]}},
+    {"id":"tottenham_hale","name":"Tottenham Hale","lat":51.58807,"lng":-0.06105,"z":3,"p":{"V":[51.58807,-0.06105]}},
+    {"id":"totteridge_and_whetstone","name":"Totteridge & Whetstone","lat":51.63072,"lng":-0.17915,"z":4,"p":{"N":[51.63072,-0.17915]}},
+    {"id":"tower_hill","name":"Tower Hill","lat":51.50982,"lng":-0.07663,"z":1,"p":{"Ci":[51.50982,-0.07663],"D":[51.50982,-0.07663]}},
+    {"id":"tufnell_park","name":"Tufnell Park","lat":51.55693,"lng":-0.13845,"z":2,"p":{"N":[51.55693,-0.13845]}},
+    {"id":"turnham_green","name":"Turnham Green","lat":51.49513,"lng":-0.2545,"z":[2,3],"p":{"D":[51.49513,-0.2545]}},
+    {"id":"turnpike_lane","name":"Turnpike Lane","lat":51.59004,"lng":-0.10264,"z":3,"p":{"P":[51.59004,-0.10264]}},
+    {"id":"upminster","name":"Upminster","lat":51.55902,"lng":0.2518,"z":6,"p":{"D":[51.55902,0.2518]},"terminal":1},
+    {"id":"upminster_bridge","name":"Upminster Bridge","lat":51.5582,"lng":0.23459,"z":6,"p":{"D":[51.5582,0.23459]}},
+    {"id":"upney","name":"Upney","lat":51.53827,"lng":0.09977,"z":4,"p":{"D":[51.53827,0.09977]}},
+    {"id":"upton_park","name":"Upton Park","lat":51.53513,"lng":0.03408,"z":3,"p":{"D":[51.53513,0.03408],"H":[51.53513,0.03408]}},
+    {"id":"uxbridge","name":"Uxbridge","lat":51.54657,"lng":-0.47775,"z":6,"p":{"M":[51.54657,-0.47774],"P":[51.54656,-0.47777]},"terminal":1},
+    {"id":"vauxhall","name":"Vauxhall","lat":51.48604,"lng":-0.12491,"z":[1,2],"p":{"V":[51.48604,-0.12491]}},
+    {"id":"victoria","name":"Victoria","lat":51.49644,"lng":-0.14372,"z":1,"p":{"Ci":[51.49634,-0.1441],"D":[51.49634,-0.1441],"V":[51.49664,-0.14297]}},
+    {"id":"walthamstow_central","name":"Walthamstow Central","lat":51.58288,"lng":-0.01996,"z":3,"p":{"V":[51.58288,-0.01996]}},
+    {"id":"wanstead","name":"Wanstead","lat":51.57563,"lng":0.02867,"z":4,"p":{"C":[51.57563,0.02867]}},
+    {"id":"warren_street","name":"Warren Street","lat":51.52453,"lng":-0.13839,"z":1,"p":{"N":[51.52456,-0.13788],"V":[51.5245,-0.13891]}},
+    {"id":"warwick_avenue","name":"Warwick Avenue","lat":51.52301,"lng":-0.18335,"z":2,"p":{"B":[51.52301,-0.18335]}},
+    {"id":"waterloo","name":"Waterloo","lat":51.50322,"lng":-0.11355,"z":1,"p":{"B":[51.50334,-0.11488],"J":[51.50346,-0.11236],"N":[51.50355,-0.11442],"W":[51.50254,-0.11255]},"major":1,"terminal":1},
+    {"id":"watford","name":"Watford","lat":51.65733,"lng":-0.41758,"z":7,"p":{"M":[51.65733,-0.41758]},"terminal":1},
+    {"id":"wembley_central","name":"Wembley Central","lat":51.55228,"lng":-0.29685,"z":4,"p":{"B":[51.55228,-0.29685]}},
+    {"id":"wembley_park","name":"Wembley Park","lat":51.56376,"lng":-0.2802,"z":4,"p":{"J":[51.56376,-0.28023],"M":[51.56375,-0.28018]}},
+    {"id":"west_acton","name":"West Acton","lat":51.51833,"lng":-0.28043,"z":3,"p":{"C":[51.51833,-0.28043]}},
+    {"id":"west_brompton","name":"West Brompton","lat":51.48693,"lng":-0.19499,"z":2,"p":{"D":[51.48693,-0.19499]}},
+    {"id":"west_drayton","name":"West Drayton","lat":51.50982,"lng":-0.47151,"z":6,"p":{"E":[51.50982,-0.47151]},"terminal":1},
+    {"id":"west_ealing","name":"West Ealing","lat":51.5135,"lng":-0.32094,"z":3,"p":{"E":[51.5135,-0.32094]}},
+    {"id":"west_finchley","name":"West Finchley","lat":51.60918,"lng":-0.18846,"z":4,"p":{"N":[51.60918,-0.18846]}},
+    {"id":"west_ham","name":"West Ham","lat":51.52827,"lng":0.0055,"z":[2,3],"p":{"D":[51.5287,0.00606],"H":[51.5287,0.00606],"J":[51.52742,0.00438]}},
+    {"id":"west_hampstead","name":"West Hampstead","lat":51.54676,"lng":-0.1905,"z":2,"p":{"J":[51.54676,-0.1905]}},
+    {"id":"west_harrow","name":"West Harrow","lat":51.57962,"lng":-0.35306,"z":5,"p":{"M":[51.57962,-0.35306]}},
+    {"id":"west_kensington","name":"West Kensington","lat":51.4907,"lng":-0.20594,"z":2,"p":{"D":[51.4907,-0.20594]}},
+    {"id":"west_ruislip","name":"West Ruislip","lat":51.56939,"lng":-0.43704,"z":6,"p":{"C":[51.56939,-0.43704]},"terminal":1},
+    {"id":"westbourne_park","name":"Westbourne Park","lat":51.52093,"lng":-0.20155,"z":2,"p":{"Ci":[51.52093,-0.20155],"H":[51.52093,-0.20155]}},
+    {"id":"westminster","name":"Westminster","lat":51.50124,"lng":-0.1252,"z":1,"p":{"Ci":[51.5014,-0.12478],"D":[51.5014,-0.12478],"J":[51.50091,-0.12603]}},
+    {"id":"white_city","name":"White City","lat":51.51195,"lng":-0.22422,"z":2,"p":{"C":[51.51195,-0.22422]}},
+    {"id":"whitechapel","name":"Whitechapel","lat":51.51974,"lng":-0.06042,"z":2,"p":{"D":[51.51948,-0.06104],"H":[51.51948,-0.06104],"E":[51.52025,-0.05917]}},
+    {"id":"willesden_green","name":"Willesden Green","lat":51.54932,"lng":-0.22214,"z":[2,3],"p":{"J":[51.54932,-0.22214]}},
+    {"id":"willesden_junction","name":"Willesden Junction","lat":51.53244,"lng":-0.24472,"z":[2,3],"p":{"B":[51.53244,-0.24472]}},
+    {"id":"wimbledon","name":"Wimbledon","lat":51.4217,"lng":-0.20599,"z":3,"p":{"D":[51.4217,-0.20599]},"major":1,"terminal":1},
+    {"id":"wimbledon_park","name":"Wimbledon Park","lat":51.4337,"lng":-0.19879,"z":3,"p":{"D":[51.4337,-0.19879]}},
+    {"id":"wood_green","name":"Wood Green","lat":51.59737,"lng":-0.10992,"z":3,"p":{"P":[51.59737,-0.10992]}},
+    {"id":"wood_lane","name":"Wood Lane","lat":51.50991,"lng":-0.22404,"z":2,"p":{"Ci":[51.50991,-0.22404],"H":[51.50991,-0.22404]}},
+    {"id":"woodford","name":"Woodford","lat":51.60664,"lng":0.03392,"z":4,"p":{"C":[51.60664,0.03392]},"terminal":1},
+    {"id":"woodside_park","name":"Woodside Park","lat":51.61781,"lng":-0.18557,"z":4,"p":{"N":[51.61781,-0.18557]}},
+    {"id":"woolwich","name":"Woolwich","lat":51.49162,"lng":0.07234,"z":4,"p":{"E":[51.49162,0.07234]}},
+  ]
+  // END GENERATED
+};
+
+const SM={},LM={},RM={};
+METRO.lines.forEach(l=>LM[l.id]=l);
+METRO.routes.forEach(r=>RM[r.id]=r);
+const LINE_ORDER=METRO.lines.map(l=>l.id);
+METRO.stations.forEach(s=>{SM[s.id]=s;s.lines=LINE_ORDER.filter(id=>s.p[id]);});
+const LINKED={};
+METRO.links.forEach(([a,b,kind])=>{(LINKED[a]||=[]).push({id:b,kind});(LINKED[b]||=[]).push({id:a,kind});});
+METRO.stations.forEach(s=>{s.isInterchange=s.lines.length>1||!!LINKED[s.id];});
+const LN=id=>LM[id].name+' line';
+const ABBR={B:'Bak',C:'Cen',Ci:'Cir',D:'Dis',H:'H&C',J:'Jub',M:'Met',N:'Nor',P:'Pic',V:'Vic',W:'W&C',E:'Eliz'};
+const DIRS={N:'Northbound',S:'Southbound',E:'Eastbound',W:'Westbound',I:'Inner Rail',O:'Outer Rail'};
+// The Northern line is black; on dark surfaces it's drawn in paper white instead.
+const onDark=id=>id==='N'?'#E9E4DA':LM[id].color;
+const zoneText=z=>Array.isArray(z)?`Zone ${z[0]}/${z[1]}`:`Zone ${z}`;
+
+// ════════════════════════════════════════════════
+//  ALGORITHMS
+// ════════════════════════════════════════════════
+function haversine(a,b,c,d){
+  const R=6371,dLat=(c-a)*Math.PI/180,dLng=(d-b)*Math.PI/180;
+  const x=Math.sin(dLat/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+// Timing model, in minutes. Fitted to 740 timetabled stop-to-stop times from TfL
+// (1.09 min per stop + 1.01 min per km, ±0.6 min), with each line's pace relative to that.
+const RIDE={perStop:1.1,perKm:1.0};
+const PACE={V:.85,J:.92,N:.93,C:.96,E:.95,H:1.03,B:1.05,M:1.05,P:1.05,Ci:1.08};
+const WAIT=3;           // average wait for a train; routes with infrequent trains set their own
+const WAIT_NIGHT=6;     // Night Tube: every 10–20 minutes
+const XFER_PENALTY=3;   // routing only: prefer fewer changes when times are close
+const walkMinutes=km=>Math.max(1,Math.round(km*1.3/4.8*60)); // 4.8 km/h, streets aren't straight
+
+// One graph node per stop of each service pattern ("N1:14" = 15th stop of Northern line
+// Morden–Edgware via Bank). A change of train, even to another branch of the same line, is an
+// explicit edge, so the planner never assumes a through train that doesn't run.
+const NODE={},AT={};
+const BRANCH_JUNCTIONS=new Set(['kennington','camden_town']);
+function buildGraph(){
+  const adj={};
+  METRO.routes.forEach(r=>{
+    const k=LM[r.line].k,pace=PACE[r.line]||1;
+    r.seq.forEach((sid,i)=>{
+      const id=r.id+':'+i;
+      NODE[id]={id,route:r.id,line:r.line,idx:i,st:sid,pt:SM[sid].p[r.line]};
+      adj[id]=[];(AT[sid]||=[]).push(id);
+    });
+    for(let i=1;i<r.seq.length;i++){
+      const a=r.id+':'+(i-1),b=r.id+':'+i;
+      const km=haversine(...NODE[a].pt,...NODE[b].pt)*k;
+      const min=(RIDE.perStop+km*RIDE.perKm)*pace;
+      adj[a].push({to:b,type:'ride',km,min});
+      if(!r.oneway)adj[b].push({to:a,type:'ride',km,min});
+    }
+  });
+  // Changing trains: walk between the two lines' platforms (passages wind, hence ×1.5, and
+  // stairs or escalators add a minute), then wait. Another train of the same line leaves from
+  // the same or a nearby platform.
+  const link=(a,b,kind)=>{
+    const A=NODE[a],B=NODE[b];
+    const m=haversine(...A.pt,...B.pt)*1000;
+    // The Northern line's two branches have separate platforms except where they meet.
+    const va=RM[A.route].via,vb=RM[B.route].via,branch=va&&vb&&va!==vb&&!BRANCH_JUNCTIONS.has(A.st);
+    const walk=!kind&&A.line===B.line?(branch?3:1):Math.max(kind==='osi'?3:2,Math.round(m*1.5/70)+1);
+    adj[a].push({to:b,type:'xfer',walk,kind});
+  };
+  Object.values(AT).forEach(ns=>ns.forEach(a=>ns.forEach(b=>{if(a!==b)link(a,b);})));
+  METRO.links.forEach(([x,y,kind,only])=>AT[x].forEach(a=>{
+    if(only&&NODE[a].line!==only)return;
+    AT[y].forEach(b=>{link(a,b,kind);link(b,a,kind);});
+  }));
+  return adj;
+}
+const GRAPH=buildGraph();
+const edgeBetween=(a,b)=>GRAPH[a].find(e=>e.to===b);
+
+// Minimal binary heap for Dijkstra.
+class Heap{
+  constructor(){this.a=[];}
+  get size(){return this.a.length;}
+  push(id,d){const a=this.a;a.push({id,d});let i=a.length-1;while(i){const p=(i-1)>>1;if(a[p].d<=a[i].d)break;[a[p],a[i]]=[a[i],a[p]];i=p;}}
+  pop(){const a=this.a,top=a[0],last=a.pop();if(a.length){a[0]=last;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<a.length&&a[l].d<a[m].d)m=l;if(r<a.length&&a[r].d<a[m].d)m=r;if(m===i)break;[a[m],a[i]]=[a[i],a[m]];i=m;}}return top;}
+}
+
+const waitOf=(rid,mode)=>mode.night?Math.max(WAIT_NIGHT,RM[rid].wait||0):(RM[rid].wait||WAIT);
+
+// Multi-source Dijkstra over the routes running now: each candidate origin starts at its walking time.
+function dijkstra(origins,dstId,mode){
+  const ok=id=>mode.routes.has(NODE[id].route);
+  const dist={},prev={},heap=new Heap(),goal=new Set(AT[dstId].filter(ok));
+  origins.forEach(o=>AT[o.st].filter(ok).forEach(n=>{
+    const d=o.walkMin+waitOf(NODE[n].route,mode);
+    if(d<(dist[n]??Infinity)){dist[n]=d;prev[n]={origin:o};heap.push(n,d);}
+  }));
+  while(heap.size){
+    const{id:u,d}=heap.pop();
+    if(d>dist[u])continue;
+    if(goal.has(u))return reconstruct(u,prev);
+    for(const e of GRAPH[u]){
+      if(!ok(e.to))continue;
+      if(e.type==='xfer'&&prev[u].origin)continue; // never start a trip with a change
+      const nd=d+(e.type==='ride'?e.min:e.walk+waitOf(NODE[e.to].route,mode)+XFER_PENALTY);
+      if(nd<(dist[e.to]??Infinity)){dist[e.to]=nd;prev[e.to]={from:u,edge:e};heap.push(e.to,nd);}
+    }
+  }
+  return null;
+}
+
+function reconstruct(u,prev){
+  const edges=[];
+  while(!prev[u].origin){edges.unshift({from:prev[u].from,edge:prev[u].edge});u=prev[u].from;}
+  return{origin:prev[u].origin,edges};
+}
+
+// Group edges into ride legs (consecutive stops on one train) and changes.
+function legsOf(edges){
+  const legs=[];let cur=null;
+  edges.forEach(({from,edge})=>{
+    if(edge.type==='ride'){
+      if(!cur){cur={type:'ride',nodes:[from]};legs.push(cur);}
+      cur.nodes.push(edge.to);
+    }else{cur=null;legs.push({type:'xfer',from,to:edge.to,walk:edge.walk,kind:edge.kind});}
+  });
+  return legs;
+}
+
+// Between two trains of the same line, change where the first one leaves the second's path
+// (usually where it terminates or branches off), not at whichever shared stop the search hit.
+function tidyChanges(legs){
+  for(let i=1;i<legs.length-1;i++){
+    const A=legs[i-1],X=legs[i],B=legs[i+1];
+    if(X.type!=='xfer'||X.kind||A.type!=='ride'||B.type!=='ride')continue;
+    if(NODE[X.from].line!==NODE[X.to].line)continue;
+    while(B.nodes.length>1){
+      const a=NODE[A.nodes.at(-1)],step=a.idx-NODE[A.nodes.at(-2)].idx,ra=RM[a.route],next=a.idx+step;
+      if(next<0||next>=ra.seq.length||(ra.oneway&&step<0)||ra.seq[next]!==NODE[B.nodes[1]].st)break;
+      A.nodes.push(a.route+':'+next);B.nodes.shift();
+    }
+    X.from=A.nodes.at(-1);X.to=B.nodes[0];
+    if(B.nodes.length===1){legs.splice(i,2);i--;} // the first train goes all the way
+  }
+  legs.forEach(l=>{
+    if(l.type==='ride'){
+      l.km=0;l.min=0;l.route=NODE[l.nodes[0]].route;l.line=NODE[l.nodes[0]].line;
+      for(let i=1;i<l.nodes.length;i++){const e=edgeBetween(l.nodes[i-1],l.nodes[i]);l.km+=e.km;l.min+=e.min;}
+    }else l.walk=edgeBetween(l.from,l.to)?.walk??l.walk;
+  });
+  return legs;
+}
+
+function originCandidates(lat,lng,excludeId){
+  const all=METRO.stations.filter(s=>s.id!==excludeId)
+    .map(s=>({st:s.id,km:haversine(lat,lng,s.lat,s.lng)})).sort((a,b)=>a.km-b.km);
+  const reach=Math.max(1.5,all[0].km*1.5);
+  return all.filter((c,i)=>i===0||(i<5&&c.km<=reach)).map(c=>({st:c.st,walkKm:c.km,walkMin:walkMinutes(c.km)}));
+}
+
+function findNearest(lat,lng){
+  let best=null,bd=Infinity;
+  METRO.stations.forEach(s=>{const d=haversine(lat,lng,s.lat,s.lng);if(d<bd){bd=d;best=s;}});
+  return{station:best,distance:bd};
+}
+
+// ── PLATFORM ADVICE ──
+// Every train pattern, as stops in travel order: routes both ways, short workings, and
+// through trains that only run at some times of day.
+const SERVICES=[];
+METRO.routes.forEach(r=>{
+  const to=r.to||[];
+  SERVICES.push({line:r.line,via:r.via||'',stops:r.seq,end:to[1]||SM[r.seq.at(-1)].name,night:!!r.night});
+  if(!r.oneway)SERVICES.push({line:r.line,via:r.via||'',stops:[...r.seq].reverse(),end:to[0]||SM[r.seq[0]].name,night:!!r.night});
+});
+METRO.services.forEach(([line,via,...stops])=>SERVICES.push({line,via,stops,end:SM[stops.at(-1)].name,minor:true}));
+function runsThrough(stops,L){
+  for(let i=0;i+L.length<=stops.length;i++){
+    if(stops[i]!==L[0])continue;
+    let j=1;while(j<L.length&&stops[i+j]===L[j])j++;
+    if(j===L.length)return true;
+  }
+  return false;
+}
+const listOr=a=>a.length<2?a.join(''):a.slice(0,-1).join(', ')+' or '+a.at(-1);
+// Circle line trains are known by where they're heading next as much as where they end.
+const CIRCLE_KEYS=['edgware_road_circle_line','baker_street','kings_cross_st_pancras','liverpool_street','tower_hill','embankment','victoria','south_kensington','high_street_kensington'];
+const MET_FAST_SKIPS=new Set(['wembley_park','preston_road','northwick_park','north_harrow','pinner','northwood_hills','northwood']);
+
+// Which trains to take for a ride leg: the direction as platforms are signed, the destinations
+// that work, and any trains on the same platform that don't.
+function platformAdvice(leg,mode){
+  const L=leg.nodes.map(id=>NODE[id].st),n0=NODE[leg.nodes[0]],n1=NODE[leg.nodes[1]],r=RM[n0.route];
+  const code=n1.idx>n0.idx?r.df[n0.idx]:r.db[n1.idx];
+  // At night only Night Tube trains count.
+  const running=SERVICES.filter(s=>!mode.night||s.night),same=running.filter(s=>s.line===leg.line);
+  const match=same.filter(s=>runsThrough(s.stops,L)),cand=same.filter(s=>runsThrough(s.stops,L.slice(0,2)));
+  const ends=[...new Set(match.map(s=>s.end))];
+  // Name the main destinations; short workings and part-time trains only matter when they don't go far enough.
+  const main=[...new Set(match.filter(s=>!s.minor).map(s=>s.end))];
+  const other=[...new Set(cand.filter(s=>!match.includes(s)).map(s=>s.end))].filter(e=>!ends.includes(e));
+  const vias=[...new Set(match.map(s=>s.via))];
+  let via=vias.length===1?vias[0]:'';
+  let loopVia='';
+  if(leg.line==='Ci'){
+    const step=n1.idx-n0.idx,keys=[];
+    for(let i=n0.idx+step;i>=0&&i<r.seq.length&&keys.length<2;i+=step)
+      if(CIRCLE_KEYS.includes(r.seq[i])&&SM[r.seq[i]].name!==ends[0])keys.push(SM[r.seq[i]].name);
+    via=keys[0]||'';
+    // Clockwise trains from Edgware Road come back to Edgware Road: say which way round.
+    if(ends.length===1&&ends[0]===SM[n0.st].name)loopVia=`round the loop via ${keys.join(' and ')}`;
+  }
+  const dir=DIRS[code];
+  let note='';
+  if(other.length)note=`Not trains for ${listOr(other)} — check the destination on the platform display.`;
+  else if(ends.length>1)note=`Any ${/Rail/.test(dir)?dir:dir.toLowerCase()} train will do.`;
+  // Lines sharing track (Circle, District, H&C, Metropolitan; Piccadilly with District or
+  // Metropolitan) often stop at exactly the same stations: either train will do.
+  const also=[...new Set(running.filter(s=>s.line!==leg.line&&runsThrough(s.stops,L)).map(s=>s.line))];
+  if(also.length)note+=(note?' ':'')+`${listOr(also.map(LN))} trains go there too.`;
+  if(leg.line==='M'&&(MET_FAST_SKIPS.has(L[0])||MET_FAST_SKIPS.has(L.at(-1))))
+    note+=(note?' ':'')+'In weekday peaks some fast trains skip this stop.';
+  // Where some trains won't do, name every one that will.
+  const shown=other.length||!main.length?ends:main;
+  return{code,dir,ends:shown,via,note,match,loop:!!loopVia,toward:loopVia||listOr(shown)+(via?` via ${via}`:'')};
+}
+
+// ── FARES ──
+const HEATHROW=new Set(['heathrow_terminals_2_and_3','heathrow_terminal_4','heathrow_terminal_5']);
+const zRange=z=>Array.isArray(z)?z:[z,z];
+// TfL charges the cheapest zones a journey can be counted in: boundary stations go either way.
+function journeyZones(stations){
+  let lo=9,hi=1;
+  stations.forEach(id=>{const[a,b]=zRange(SM[id].z);lo=Math.min(lo,b);hi=Math.max(hi,a);});
+  if(lo<=hi)return[lo,hi];
+  // Every station shares a zone (e.g. two boundary stations): charge the cheapest one.
+  let best=null;
+  for(let z=hi;z<=lo;z++){const f=zoneFare(z,z);if(!best||f[0]<best.f[0])best={z,f};}
+  return[best.z,best.z];
+}
+const zoneFare=(lo,hi)=>lo===1?METRO.fares.z1[hi]:METRO.fares.nz[lo+'-'+hi];
+const zonesLabel=(lo,hi)=>lo===hi?`Zone ${lo}`:`Zones ${lo}–${hi}`;
+
+function isPeakNow(originId,dstId){
+  const t=londonParts(),m=t.h*60+t.mi;
+  if(t.dow===0||t.dow===6)return false;
+  const[[a,b],[c,d]]=METRO.fares.peak;
+  if(m>=a&&m<b)return true;
+  // Evening peak: travelling into Zone 1 from outside it is charged off-peak.
+  if(m>=c&&m<d)return!(zRange(SM[originId].z)[0]>1&&zRange(SM[dstId].z)[0]===1);
+  return false;
+}
+
+function calcFare(legs,originId,dstId){
+  const F=METRO.fares,sts=new Set();
+  legs.forEach(l=>{if(l.type==='ride')l.nodes.forEach(id=>sts.add(NODE[id].st));else{sts.add(NODE[l.from].st);sts.add(NODE[l.to].st);}});
+  const[lo,hi]=journeyZones(sts);
+  let[peak,off]=zoneFare(lo,hi),note='',capped=true;
+  const rides=legs.filter(l=>l.type==='ride'),all=[...sts];
+  if(all.every(id=>HEATHROW.has(id)||id==='hatton_cross')){
+    peak=off=0;note='Travel between the Heathrow terminals and Hatton Cross is free.';
+  }else if(rides.some(l=>l.line==='E'&&l.nodes.some(id=>HEATHROW.has(NODE[id].st)))){
+    capped=false;
+    if(lo===1){
+      peak=off=NODE[rides[0].nodes[0]].st==='paddington'&&rides.length===1?F.heathrowXR.paddington:F.heathrowXR.z1;
+      note=`Elizabeth line fares to and from Heathrow are set separately. The Piccadilly line is slower but costs £${F.z1[6][0].toFixed(2)}.`;
+    }else{peak+=F.heathrowXR.supplement;off+=F.heathrowXR.supplement;note='Includes the Elizabeth line Heathrow supplement.';}
+  }else if(lo===1&&all.some(id=>HEATHROW.has(id))){
+    off=peak;note='Tube journeys to or from Heathrow through Zone 1 are charged the peak fare at all times.';
+  }
+  const pk=isPeakNow(originId,dstId);
+  return{peak,off,now:pk?peak:off,isPeak:pk&&peak!==off,lo,hi,cap:F.cap[hi],capOff:Math.min(F.cap[hi],F.capOffPeakMax),capped,note};
+}
+const gbp=v=>v===0?'Free':`£${v.toFixed(2)}`;
+
+// ── LONDON TIME AND SERVICE HOURS ──
+const LDN=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+function londonParts(t=Date.now()){
+  const p=Object.fromEntries(LDN.formatToParts(new Date(t)).map(x=>[x.type,x.value]));
+  return{dow:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(p.weekday),h:+p.hour%24,mi:+p.minute};
+}
+const fmtHM=p=>`${String(p.h).padStart(2,'0')}:${String(p.mi).padStart(2,'0')}`;
+const inLondonTZ=()=>Intl.DateTimeFormat().resolvedOptions().timeZone==='Europe/London';
+function tzAbbr(){
+  try{return new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',timeZoneName:'short'}).formatToParts(new Date()).find(x=>x.type==='timeZoneName').value.replace('GMT+1','BST');}
+  catch(e){return'London';}
+}
+// Trains run from about 05:00 to 00:30. On Friday and Saturday nights the Night Tube keeps
+// parts of five lines going; the Waterloo & City runs Monday to Friday only.
+function serviceMode(forceDay){
+  const t=londonParts(),m=t.h*60+t.mi,weekday=t.dow>=1&&t.dow<=5;
+  let state='open';
+  if(m<30)state='last';
+  else if(m<300)state=t.dow===6||t.dow===0?'night':'closed';
+  const night=state==='night'&&!forceDay;
+  const routes=new Set(METRO.routes.filter(r=>{
+    if(night)return!!r.night;
+    if(r.night===2)return false;
+    if(r.weekdays&&(!weekday||state==='closed'||state==='night'))return false;
+    return true;
+  }).map(r=>r.id));
+  return{state,routes,night,weekday};
+}
+
+// ════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════
+const S={
+  mode:{home:'gps',plan:'gps'},
+  srcLat:{home:null,plan:null},
+  srcLng:{home:null,plan:null},
+  srcName:{home:null,plan:null},
+  dst:{home:null,plan:null},
+  plannerMap:null,metroMap:null,routeLayers:[],
+};
+
+// ════════════════════════════════════════════════
+//  NAVIGATION
+// ════════════════════════════════════════════════
+function showPage(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('[data-page]').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll(`[data-page="${page}"]`).forEach(b=>b.classList.add('active'));
+  if(page==='planner'&&!S.plannerMap)setTimeout(initPlannerMap,100);
+  if(page==='metromap'&&!S.metroMap)setTimeout(initMetroMap,100);
+}
+
+// ════════════════════════════════════════════════
+//  LOCATION MODES
+// ════════════════════════════════════════════════
+function setMode(ctx,mode){
+  S.mode[ctx]=mode;
+  ['gps','addr'].forEach(m=>{
+    document.getElementById(`${ctx}-${m}-btn`).classList.toggle('active',m===mode);
+    document.getElementById(`${ctx}-${m}-panel`).style.display=m===mode?'block':'none';
+  });
+  S.srcLat[ctx]=null;S.srcLng[ctx]=null;S.srcName[ctx]=null;
+}
+
+// ── GPS ──
+const GPS_ICON='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" style="width:18px;height:18px"><circle cx="10" cy="10" r="3"/><path d="M10 2v3M10 15v3M2 10h3M15 10h3"/></svg>';
+function requestGPS(ctx){
+  const btn=document.getElementById(`${ctx}-gps-action-btn`);
+  const st=document.getElementById(`${ctx}-gps-status`);
+  btn.disabled=true;
+  btn.innerHTML=`<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" style="width:18px;height:18px;animation:spin .8s linear infinite"><path d="M10 3a7 7 0 1 0 7 7"/></svg> Detecting…`;
+  st.className='gps-status loading';st.innerHTML='⟳ Requesting location access…';
+  if(!navigator.geolocation){gpsErr(ctx,btn,'Geolocation is not supported in this browser.');return;}
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      const{latitude:lat,longitude:lng}=pos.coords;
+      const nr=findNearest(lat,lng);
+      // Planning from another city is fine, just not from your GPS position.
+      if(nr.distance>40){
+        gpsErr(ctx,btn,`You seem to be outside London (${Math.round(nr.distance).toLocaleString()} km from the nearest station). Switch to “Enter Address” to plan a London trip.`);
+        return;
+      }
+      S.srcLat[ctx]=lat;S.srcLng[ctx]=lng;S.srcName[ctx]='Your location';
+      btn.disabled=false;
+      btn.innerHTML=`${GPS_ICON} Location detected`;
+      st.className='gps-status success';
+      st.innerHTML=`✓ Located · Nearest station: ${escHtml(nr.station.name)} (${fmtKm(nr.distance)} away)`;
+    },
+    err=>{
+      let m='Could not get your location.';
+      if(err.code===1)m='Location access was denied. Please allow it in your browser, or use the address option.';
+      if(err.code===2)m='Position unavailable. Try the address entry option.';
+      if(err.code===3)m='Location request timed out. Please try again.';
+      gpsErr(ctx,btn,m);
+    },
+    {enableHighAccuracy:true,timeout:12000,maximumAge:60000}
+  );
+}
+
+function gpsErr(ctx,btn,msg){
+  btn.disabled=false;
+  btn.innerHTML=`${GPS_ICON} Allow location access`;
+  const st=document.getElementById(`${ctx}-gps-status`);
+  st.className='gps-status error';st.innerHTML=`⚠ ${escHtml(msg)}`;
+}
+
+// ── ADDRESS SEARCH ──
+// Matching stations are listed first, then places: Google Places Autocomplete (New)
+// when window.GOOGLE_MAPS_API_KEY is set via config.js, otherwise Nominatim.
+const LDN_BOUNDS={south:51.28,west:-0.56,north:51.70,east:0.30};
+let placesLib=null,placesToken=null;
+const addrSugg={home:{stations:[],places:[],loading:false},plan:{stations:[],places:[],loading:false}};
+
+function loadPlaces(){
+  const key=window.GOOGLE_MAPS_API_KEY;
+  if(!key||key==='YOUR_KEY_HERE')return;
+  // Google's dynamic bootstrap loader, so importLibrary() is available.
+  (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({key,v:"weekly",region:"GB",language:"en"});
+  google.maps.importLibrary('places')
+    .then(lib=>{placesLib=lib;})
+    .catch(e=>console.warn('Places unavailable, using Nominatim:',e));
+}
+loadPlaces();
+
+let gTimer=null;
+function handleAddrInput(el,ctx){
+  clearTimeout(gTimer);
+  S.srcLat[ctx]=null;S.srcLng[ctx]=null;
+  el.classList.remove('ok');
+  const rv=document.getElementById(`${ctx}-addr-resolving`);
+  const ac=document.getElementById(`${ctx}-addr-ac`);
+  rv.style.display='none';
+  const q=el.value.trim();
+  if(q.length<2){ac.style.display='none';return;}
+  const sg=addrSugg[ctx];
+  sg.stations=searchStations(q,3);sg.places=[];sg.loading=q.length>=3;
+  renderAddr(ctx);
+  if(!sg.loading)return;
+  gTimer=setTimeout(async()=>{
+    let items=[];
+    try{items=placesLib?await placesSuggest(q):await nominatimSuggest(q);}
+    catch(e){
+      // Bad/restricted key or quota: drop back to Nominatim for the rest of the session.
+      console.warn('Place search failed:',e);
+      if(placesLib){placesLib=null;try{items=await nominatimSuggest(q);}catch(e2){}}
+    }
+    if(el.value.trim()!==q)return; // stale response
+    sg.places=localFirst(items).slice(0,5);sg.loading=false;
+    renderAddr(ctx);
+  },placesLib?250:650);
+}
+
+const escHtml=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtKm=km=>km<1?`${Math.round(km*1000/10)*10} m`:`${km.toFixed(1)} km`;
+
+// London results first; bias alone still lets same-named places elsewhere in the UK rank high.
+const isLocal=t=>/london|middlesex|essex|hertfordshire|buckinghamshire|surrey|kent|berkshire|\b(E|EC|N|NW|SE|SW|W|WC)\d/i.test(t);
+const localFirst=list=>[...list.filter(x=>isLocal(x.full)),...list.filter(x=>!isLocal(x.full))];
+
+async function placesSuggest(q){
+  if(!placesToken)placesToken=new placesLib.AutocompleteSessionToken();
+  const{suggestions}=await placesLib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+    input:q,sessionToken:placesToken,locationBias:LDN_BOUNDS,includedRegionCodes:['gb'],
+  });
+  let items=suggestions.map(s=>s.placePrediction).filter(Boolean).map(p=>({
+    main:p.mainText?.text||p.text.text,sub:p.secondaryText?.text||'',full:p.text.text,pred:p,
+  }));
+  // Autocomplete gives up on long, full pasted addresses. Fall back to Text Search like
+  // Google Maps does — only once typing pauses, as it costs more.
+  if(!items.length&&q.length>=8){
+    const{places}=await placesLib.Place.searchByText({
+      textQuery:q,fields:['displayName','formattedAddress','location'],
+      locationBias:LDN_BOUNDS,region:'gb',maxResultCount:5,
+    });
+    items=places.map(p=>({main:p.displayName||p.formattedAddress,sub:p.formattedAddress||'',full:[p.displayName,p.formattedAddress].filter(Boolean).join(', '),place:p}));
+  }
+  return items;
+}
+
+async function nominatimSuggest(q){
+  const{west,north,east,south}=LDN_BOUNDS;
+  const url=`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=6&countrycodes=gb&viewbox=${west},${north},${east},${south}&accept-language=en`;
+  const data=await(await fetch(url)).json();
+  return data.map(r=>{
+    const parts=r.display_name.split(', ');
+    return{main:r.name||parts[0],sub:parts.slice(1,5).join(', '),full:r.display_name,lat:+r.lat,lng:+r.lon};
+  });
+}
+
+function renderAddr(ctx){
+  const ac=document.getElementById(`${ctx}-addr-ac`),sg=addrSugg[ctx];
+  let html='';
+  if(sg.stations.length){
+    html+=`<div class="ac-head">Stations</div>`+sg.stations.map((s,i)=>
+      `<div class="ac-item" onclick="selectAddr('${ctx}','s',${i})"><span class="ac-name">${escHtml(s.name)}<small>${zoneText(s.z)}</small></span><div class="ac-meta">${symsOf(s)}</div></div>`).join('');
+  }
+  if(sg.places.length){
+    html+=`<div class="ac-head">Places</div>`+sg.places.map((p,i)=>
+      `<div class="ac-item" onclick="selectAddr('${ctx}','p',${i})"><span class="ac-name">${escHtml(p.main)}<small>${escHtml(p.sub)}</small></span></div>`).join('');
+  }else if(sg.loading){
+    html+=`<div class="ac-empty">Searching places…</div>`;
+  }else if(!sg.stations.length){
+    html=`<div class="ac-empty">No matches — try a landmark, building, postcode or station name</div>`;
+  }
+  ac.innerHTML=html;ac.style.display='block';
+}
+
+async function selectAddr(ctx,kind,i){
+  const el=document.getElementById(`${ctx}-addr-input`);
+  const ac=document.getElementById(`${ctx}-addr-ac`);
+  const rv=document.getElementById(`${ctx}-addr-resolving`);
+  ac.style.display='none';
+  const ok=(lat,lng,name)=>{
+    S.srcLat[ctx]=lat;S.srcLng[ctx]=lng;S.srcName[ctx]=name;
+    el.classList.add('ok');setTimeout(()=>el.classList.remove('ok'),2000);
+  };
+  if(kind==='s'){
+    const s=addrSugg[ctx].stations[i];if(!s)return;
+    el.value=`${s.name} station`;ok(s.lat,s.lng,el.value);return;
+  }
+  const item=addrSugg[ctx].places[i];if(!item)return;
+  el.value=item.full;
+  try{
+    if(item.lat!=null){ok(item.lat,item.lng,item.main);return;}
+    let place=item.place;
+    if(!place){
+      place=item.pred.toPlace();
+      await place.fetchFields({fields:['location','displayName']});
+      placesToken=null; // session ends on details fetch
+    }
+    ok(place.location.lat(),place.location.lng(),item.main||el.value);
+  }catch(e){
+    console.warn('Place details failed:',e);
+    rv.className='addr-resolving err';rv.style.display='block';rv.innerHTML='⚠ Could not get that location. Try another suggestion.';
+  }
+}
+
+// ── STATION SEARCH ──
+// Matches station names ignoring punctuation ("kings cross", "st pancras"), plus a few
+// everyday names for the airport terminals and big stations.
+const fold=t=>t.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/&/g,'and').replace(/[^a-z0-9]/g,'');
+const ALIAS={heathrow_terminals_2_and_3:'heathrow airport t2 t3 terminal 2 terminal 3',heathrow_terminal_4:'heathrow airport t4',
+  heathrow_terminal_5:'heathrow airport t5',kings_cross_st_pancras:'kx eurostar st pancras',tottenham_court_road:'tcr',
+  elephant_and_castle:'e&c',harrow_on_the_hill:'harrow',paddington:'heathrow express',victoria:'gatwick',
+  liverpool_street:'stansted',canary_wharf:'docklands'};
+METRO.stations.forEach(s=>{
+  s.key=fold(s.name);
+  s.parts=(s.name+' '+(ALIAS[s.id]||'')).toLowerCase().split(/[-\s(&,.]+/).map(fold).filter(Boolean);
+});
+function searchStations(q,limit=8){
+  const f=fold(q);if(!f)return[];
+  const words=q.toLowerCase().split(/[\s,]+/).map(fold).filter(Boolean);
+  const scored=[];
+  METRO.stations.forEach(s=>{
+    let sc=null;
+    if(s.key.startsWith(f))sc=1;
+    else if(s.parts.some(p=>p.startsWith(f)))sc=2;
+    else if(words.length>1&&words.every(w=>s.parts.some(p=>p.startsWith(w))))sc=2; // "heathrow t5"
+    else if(f.length>=3&&s.key.includes(f))sc=3;
+    if(sc!=null)scored.push({s,sc});
+  });
+  return scored.sort((a,b)=>a.sc-b.sc||b.s.lines.length-a.s.lines.length||a.s.name.localeCompare(b.s.name)).slice(0,limit).map(x=>x.s);
+}
+
+// Line badge: a pill in the line's colour with a short name, as on TfL's line diagrams.
+function sym(lineId,cls=''){
+  const l=LM[lineId];
+  return`<span class="sym ${cls}" style="--c:${l.color};--t:${l.tc}" title="${escHtml(LN(lineId))}">${escHtml(ABBR[lineId])}</span>`;
+}
+function symsOf(s,cls='sm'){
+  return`<span class="syms">${s.lines.map(l=>sym(l,cls)).join('')}</span>`;
+}
+
+function handleStationInput(el,ctx,field){
+  const q=el.value.trim();
+  const ac=document.getElementById(`${ctx}-${field}-ac`);
+  if(field==='dest')S.dst[ctx]=null;
+  if(!q){ac.style.display='none';return;}
+  const res=searchStations(q,8);
+  if(!res.length){ac.innerHTML=`<div class="ac-empty">No station matches “${escHtml(q)}”</div>`;ac.style.display='block';return;}
+  const ql=q.toLowerCase();
+  ac.innerHTML=res.map(s=>{
+    const at=s.name.toLowerCase().indexOf(ql);
+    const nm=at<0?escHtml(s.name):escHtml(s.name.slice(0,at))+'<mark>'+escHtml(s.name.slice(at,at+q.length))+'</mark>'+escHtml(s.name.slice(at+q.length));
+    return`<div class="ac-item" onclick="selectStn('${s.id}','${ctx}','${field}')"><span class="ac-name">${nm}<small>${zoneText(s.z)}</small></span><div class="ac-meta">${symsOf(s)}</div></div>`;
+  }).join('');
+  ac.style.display='block';
+}
+
+function selectStn(id,ctx,field){
+  const s=SM[id];
+  document.getElementById(`${ctx}-${field==='dest'?'dest':'src'}`).value=s.name;
+  document.getElementById(`${ctx}-${field}-ac`).style.display='none';
+  if(field==='dest')S.dst[ctx]=s;
+}
+
+document.addEventListener('click',e=>{
+  if(e.target.closest('.ac-item'))return;
+  const own=e.target.closest('.addr-wrap,.stn-wrap')?.querySelector('.autocomplete');
+  document.querySelectorAll('.autocomplete').forEach(a=>{if(a!==own)a.style.display='none';});
+});
+
+// ── SWAP ──
+function swapAll(ctx){
+  const dst=S.dst[ctx];
+  if(!dst)return;
+  setMode(ctx,'addr');
+  S.srcLat[ctx]=dst.lat;S.srcLng[ctx]=dst.lng;S.srcName[ctx]=`${dst.name} station`;
+  const ai=document.getElementById(`${ctx}-addr-input`);
+  if(ai)ai.value=`${dst.name} station`;
+  S.dst[ctx]=null;
+  document.getElementById(`${ctx}-dest`).value='';
+  document.getElementById(`${ctx}-dest`).focus();
+}
+
+// ════════════════════════════════════════════════
+//  ROUTE PLANNING
+// ════════════════════════════════════════════════
+function planFromHome(){
+  clearErr('home');
+  if(!S.srcLat.home||!S.srcLng.home){
+    showErr('home',S.mode.home==='gps'?'Please detect your location first, or switch to address entry.':'Please pick your starting point from the suggestions.');return;
+  }
+  if(!S.dst.home){showErr('home','Please select a destination station.');return;}
+  S.srcLat.plan=S.srcLat.home;S.srcLng.plan=S.srcLng.home;S.srcName.plan=S.srcName.home;S.dst.plan=S.dst.home;
+  setMode('plan',S.mode.home);
+  S.srcLat.plan=S.srcLat.home;S.srcLng.plan=S.srcLng.home;S.srcName.plan=S.srcName.home;
+  if(S.mode.home==='addr')document.getElementById('plan-addr-input').value=document.getElementById('home-addr-input').value;
+  else{const st=document.getElementById('plan-gps-status');st.className='gps-status success';st.innerHTML=document.getElementById('home-gps-status').innerHTML;}
+  document.getElementById('plan-dest').value=S.dst.home.name;
+  showPage('planner');setTimeout(planRoute,350);
+}
+
+function planRoute(){
+  clearErr('plan');
+  document.getElementById('plan-result').style.display='none';
+  if(!S.srcLat.plan||!S.srcLng.plan){
+    showErr('plan',S.mode.plan==='gps'?'Please detect your current location first.':'Please pick your starting point from the suggestions.');return;
+  }
+  if(!S.dst.plan){showErr('plan','Please select a destination station.');return;}
+  showLoad('Finding the fastest route…');
+  setTimeout(()=>{
+    try{
+      const result=runJourney(S.srcLat.plan,S.srcLng.plan,S.dst.plan);
+      hideLoad();
+      if(result.walkOnly){
+        showErr('plan',`${result.dst.name} station is about ${result.walkMin} min on foot from your starting point — walking is quicker than taking the Tube.`,true);
+        return;
+      }
+      renderResult(result);
+      document.querySelector('.planner-layout').classList.add('has-route');
+      if(innerWidth<=900)scrollTo({top:0,behavior:'smooth'});
+      const draw=()=>drawRoute(result,S.srcLat.plan,S.srcLng.plan);
+      if(S.plannerMap)draw();else S.pendingRoute=draw;
+    }catch(e){hideLoad();console.error(e);showErr('plan',e.message);}
+  },350);
+}
+
+function runJourney(lat,lng,dst){
+  const origins=originCandidates(lat,lng,dst.id);
+  const directKm=haversine(lat,lng,dst.lat,dst.lng);
+  let mode=serviceMode(),found=dijkstra(origins,dst.id,mode),offNight=false;
+  // Not on the Night Tube: plan with the daytime network and say when it runs.
+  if(!found&&mode.night){mode=serviceMode(true);found=dijkstra(origins,dst.id,mode);offNight=true;}
+  if(!found)throw new Error('No route found between these stations.');
+  const legs=tidyChanges(legsOf(found.edges));
+  // A trailing change is the walk from where you get off to a connected station.
+  const trailing=legs.at(-1).type==='xfer'?legs.pop():null;
+  const rides=legs.filter(l=>l.type==='ride');
+  const o=found.origin;
+  let total=o.walkMin+waitOf(rides[0].route,mode)+(trailing?trailing.walk:0);
+  legs.forEach(l=>{total+=l.type==='ride'?l.min:l.walk+waitOf(legs[legs.indexOf(l)+1].route,mode);});
+  const totalMin=Math.round(total);
+  if(walkMinutes(directKm)<=totalMin)return{walkOnly:true,dst,walkMin:walkMinutes(directKm)};
+  const firstSt=NODE[rides[0].nodes[0]].st;
+  return{
+    origin:o,dst,legs,trailing,totalMin,mode,offNight,
+    km:rides.reduce((t,l)=>t+l.km,0),
+    stops:rides.reduce((t,l)=>t+l.nodes.length-1,0),
+    changes:legs.filter(l=>l.type==='xfer').length,
+    fare:calcFare(trailing?[...legs,trailing]:legs,firstSt,dst.id),
+  };
+}
+
+function showErr(ctx,msg,info){const e=document.getElementById(`${ctx}-error`);if(e){e.textContent=msg;e.classList.toggle('info',!!info);e.style.display='block';}}
+function clearErr(ctx){const e=document.getElementById(`${ctx}-error`);if(e){e.style.display='none';e.textContent='';}}
+function showLoad(msg){document.getElementById('loading-msg').textContent=msg||'Loading…';document.getElementById('loading-veil').classList.add('show');}
+function hideLoad(){document.getElementById('loading-veil').classList.remove('show');}
+
+// ════════════════════════════════════════════════
+//  RENDER RESULTS
+// ════════════════════════════════════════════════
+const ICON={
+  walk:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="2.8" r="1.3"/><path d="m6 14 1.6-4.2L9.8 12v2.5M7.6 9.8 8.4 6l-2.2 1L5 9M8.4 6l1.6 2 2 .6"/></svg>',
+  board:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="2" width="9" height="9.5" rx="2.2"/><path d="M3.5 7h9M6 14l-1-2.5M10 14l1-2.5"/><circle cx="6" cy="9.2" r=".4" fill="currentColor"/><circle cx="10" cy="9.2" r=".4" fill="currentColor"/></svg>',
+  transfer:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5h9.5L10 3M13 10.5H3.5L6 13"/></svg>',
+  arrive:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>',
+  ext:'<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5H2.5v7h7V7M7 2.5h2.5V5M9.5 2.5 5.5 6.5"/></svg>',
+};
+const walkLink=(a,b)=>`https://www.google.com/maps/dir/?api=1&origin=${a[0].toFixed(5)},${a[1].toFixed(5)}&destination=${b[0].toFixed(5)},${b[1].toFixed(5)}&travelmode=walking`;
+
+function renderResult(r){
+  const{origin:o,legs,trailing,totalMin,km,stops,changes,fare,mode}=r;
+  const now=londonParts(),arrive=londonParts(Date.now()+totalMin*60000);
+  const steps=buildSteps(r);
+  const rides=legs.filter(l=>l.type==='ride');
+  const boardStn=SM[NODE[rides[0].nodes[0]].st];
+  const walkTotal=o.walkMin+(trailing?trailing.walk:0);
+
+  // Journey bar: one segment per leg, width proportional to time spent on it.
+  const bar=[`<i class="jb-walk" style="flex:${o.walkMin}"></i>`,...legs.map(l=>l.type==='ride'
+    ?`<i style="--c:${onDark(l.line)};flex:${l.min}"></i>`
+    :`<i class="jb-xfer" style="flex:${l.walk+2}"></i>`)].join('');
+  const pills=rides.map(l=>`<span class="lc" style="--c:${onDark(l.line)}">${LN(l.line)}</span>`).join('<span class="pill-sep">›</span>');
+  const t=fmtHM(now);
+  let night='';
+  if(r.offNight)night=`It's ${t} in London. This journey isn't on the Night Tube, so it's shown as it runs by day — trains start again from about 05:30 (later on Sunday mornings).`;
+  else if(mode.night)night=`Night Tube: trains run every 10–20 minutes tonight, so allow extra time.`;
+  else if(mode.state==='closed')night=`It's ${t} in London and the Tube has closed for the night. First trains run from about 05:00–05:30.`;
+  else if(mode.state==='last')night=`It's ${t} in London — last trains are leaving now. Check the last-train times at the station before you set off.`;
+  const nightHtml=night?`<div class="night-note">${night}</div>`:'';
+  const label=fare.peak===fare.off?'Fare':fare.isPeak?'Peak fare':'Off-peak fare';
+  const other=fare.peak===fare.off?'':fare.isPeak?`off-peak ${gbp(fare.off)}`:`peak ${gbp(fare.peak)}`;
+  const capTxt=fare.capped&&fare.now>0?`daily cap ${gbp(fare.isPeak?fare.cap:fare.capOff)} (${zonesLabel(fare.lo,fare.hi)})`:'';
+  const fareLine=[`Contactless or Oyster`,other,capTxt].filter(Boolean).join(' · ');
+
+  const summary=`
+    <div class="summary-card">
+      <div class="summary-top">
+        <div>
+          <div class="summary-eta"><span class="tnum">${totalMin}</span> min</div>
+          <div class="summary-arrive">Leave now · arrive around ${fmtHM(arrive)}${inLondonTZ()?'':' London time'}</div>
+        </div>
+        <div class="fare-chip"><span>${label}</span>${gbp(fare.now)}<small>${zonesLabel(fare.lo,fare.hi)}</small></div>
+      </div>
+      <div class="journey-bar">${bar}</div>
+      <div class="summary-route"><strong>${escHtml(boardStn.name)}</strong><span class="r-arrow">→</span><strong>${escHtml(r.dst.name)}</strong></div>
+      <div class="summary-pills">${pills}</div>
+      <div class="summary-stats">
+        <div class="stat"><span class="stat-val">${stops}</span><span class="stat-lbl">stops</span></div>
+        <div class="stat"><span class="stat-val">${km.toFixed(1)}</span><span class="stat-lbl">km by train</span></div>
+        <div class="stat"><span class="stat-val">${changes}</span><span class="stat-lbl">change${changes!==1?'s':''}</span></div>
+        <div class="stat"><span class="stat-val">${walkTotal}</span><span class="stat-lbl">min walk</span></div>
+      </div>
+      <div class="fare-line">${escHtml(fareLine)}${fare.note?`<br>${escHtml(fare.note)}`:''}</div>
+      ${nightHtml}
+    </div>`;
+
+  const stepsHtml=steps.map((step,i)=>{
+    const isLast=i===steps.length-1;
+    const c=step.line?`--c:${LM[step.line].color}`:'';
+    const plat=step.adv?`<div class="platform-badge" style="${c}">
+        ${sym(step.line,'lg')}
+        <span class="plat-label">${escHtml(step.adv.dir)}</span>
+        <div class="plat-div"></div>
+        <span class="plat-dir">${step.adv.loop?'':'towards '}${escHtml(step.adv.toward)}</span>
+      </div>${step.adv.note?`<div class="through-note">${escHtml(step.adv.note)}</div>`:''}`:'';
+    const xfer=step.xferNote?`<div class="transfer-box"><div class="transfer-title">Change trains</div><div class="transfer-inst">${step.xferNote}</div>${step.gate?`<div class="transfer-gate">${step.gate}</div>`:''}</div>`:'';
+    const stopsHtml=step.stops&&step.stops.length?`<details class="stops-list" style="${c}">
+        <summary>${step.stops.length} stop${step.stops.length!==1?'s':''} before ${escHtml(step.to)}</summary>
+        <ol>${step.stops.map(s=>`<li><code>${s.zone}</code>${escHtml(s.name)}</li>`).join('')}</ol>
+      </details>`:'';
+    const maps=step.maps?`<a class="maps-link" href="${step.maps}" target="_blank" rel="noopener">${ICON.walk}Walking directions${ICON.ext}</a>`:'';
+    const track=step.trackLine?(step.trackLine==='dashed'||step.trackLine==='solid'?`<div class="step-track ${step.trackLine}"></div>`:`<div class="step-track line" style="--c:${LM[step.trackLine].color}"></div>`):'<div class="step-track solid"></div>';
+    return`<div class="step-row">
+      <div class="step-line-col">
+        <div class="step-dot ${step.type}" style="${c}">${ICON[step.type]||''}</div>
+        ${!isLast?track:''}
+      </div>
+      <div class="step-body">
+        <div class="step-tag">${step.tag}</div>
+        <div class="step-main">${step.main}</div>
+        ${step.detail?`<div class="step-detail">${step.detail}</div>`:''}
+        ${maps}${plat}${stopsHtml}${xfer}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('plan-quick')?.classList.add('hidden');
+  const el=document.getElementById('plan-result');
+  el.innerHTML=`${summary}<div class="steps-section"><p class="steps-heading">Step-by-step</p><div>${stepsHtml}</div></div>`;
+  el.style.display='block';
+}
+
+const zoneShort=z=>Array.isArray(z)?`Z${z[0]}/${z[1]}`:`Z${z}`;
+const platPhrase=adv=>`<strong>${escHtml(adv.dir)}</strong> platform, trains ${adv.loop?'':'towards '}<strong>${escHtml(adv.toward)}</strong>`;
+
+function buildSteps(r){
+  const{origin:o,legs,trailing}=r;
+  const steps=[];
+  const firstStn=SM[o.st];
+  const far=o.walkKm>2?' — a bus or taxi may be quicker':'';
+  steps.push({type:'walk',tag:`Walk · ${o.walkMin} min`,main:`Walk to ${escHtml(firstStn.name)} station`,
+    detail:o.walkKm<.05?'You\'re at the station — head inside to the platforms':`About ${fmtKm(o.walkKm)} to the station${far}`,maps:walkLink([S.srcLat.plan,S.srcLng.plan],[firstStn.lat,firstStn.lng]),trackLine:'dashed'});
+
+  const advice=new Map(legs.filter(l=>l.type==='ride').map(l=>[l,platformAdvice(l,r.mode)]));
+  legs.forEach((leg,i)=>{
+    if(leg.type==='ride'){
+      const a=NODE[leg.nodes[0]],b=NODE[leg.nodes.at(-1)],n=leg.nodes.length-1;
+      steps.push({type:'board',line:leg.line,
+        tag:`${LN(leg.line)} · ${n} stop${n!==1?'s':''} · ${Math.round(leg.min)} min`,
+        main:`Board at ${escHtml(SM[a.st].name)}`,detail:`Ride to ${escHtml(SM[b.st].name)}`,
+        adv:advice.get(leg),
+        stops:leg.nodes.slice(1,-1).map(id=>({name:SM[NODE[id].st].name,zone:zoneShort(SM[NODE[id].st].z)})),
+        to:SM[b.st].name,trackLine:leg.line});
+      return;
+    }
+    const prev=legs[i-1],next=legs[i+1],A=NODE[leg.from],B=NODE[leg.to];
+    const adv=advice.get(next);
+    const sameStn=A.st===B.st,sameLine=A.line===B.line;
+    const an=escHtml(SM[A.st].name),bn=escHtml(SM[B.st].name);
+    let note,gate='';
+    if(sameStn&&sameLine){
+      const ra=RM[A.route],step=A.idx-NODE[prev.nodes.at(-2)].idx,ends=A.idx+step<0||A.idx+step>=ra.seq.length;
+      const pa=advice.get(prev),rb=RM[B.route];
+      const lead=pa.match.every(s=>s.stops.at(-1)===A.st)?'Your train terminates here.'
+        :ra.via&&rb.via&&ra.via!==rb.via?`Your train carries on via ${ra.via}, so get off here.`
+        :pa.ends.length===1&&!ends?`Your train carries on to ${escHtml(pa.ends[0])}, so get off here.`
+        :'Get off here unless your train is going your way.';
+      note=`${lead} Change to another ${sym(B.line)} ${LN(B.line)} train: ${platPhrase(adv)}.`;
+      // Some trains do run through at other times of day.
+      const whole=[...prev.nodes,...next.nodes.slice(1)].map(id=>NODE[id].st);
+      if(!r.mode.night&&SERVICES.some(s=>s.line===B.line&&runsThrough(s.stops,whole)))
+        gate=`Some trains run through at other times: if yours is going to ${escHtml(adv.ends[0])}${adv.via?` via ${escHtml(adv.via)}`:''}, stay on.`;
+    }else if(sameStn){
+      note=`Follow the signs for the ${sym(B.line)} <strong>${LN(B.line)}</strong>: ${platPhrase(adv)}.`;
+    }else if(leg.kind==='osi'){
+      note=`Leave the station and walk to <strong>${bn}</strong> station (about ${leg.walk} min), then take the ${sym(B.line)} <strong>${LN(B.line)}</strong>: ${platPhrase(adv)}.`;
+      gate='This is an official out-of-station interchange: touch in again with the same card and it still counts as one journey.';
+    }else{
+      note=`Follow the signs through the connecting passage to <strong>${bn}</strong> (about ${leg.walk} min), then the ${sym(B.line)} <strong>${LN(B.line)}</strong>: ${platPhrase(adv)}.`;
+    }
+    steps.push({type:'transfer',tag:`Change · about ${leg.walk} min walk`,
+      main:sameStn?`Change at ${an}`:`Change at ${an} for ${bn}`,
+      detail:sameLine?`Stay on the ${LN(B.line)}`:`Switch to the ${LN(B.line)}`,
+      xferNote:note,gate,trackLine:'solid'});
+  });
+
+  const lastRide=legs.filter(l=>l.type==='ride').at(-1);
+  const off=SM[NODE[lastRide.nodes.at(-1)].st];
+  const t=r.trailing;
+  steps.push(t
+    ?{type:'arrive',tag:'Arrive',main:`Get off at ${escHtml(off.name)}`,detail:t.kind==='osi'
+      ?`Then leave the station and walk to ${escHtml(r.dst.name)}, about ${t.walk} min. You've arrived.`
+      :`Then walk through the connecting passage to ${escHtml(r.dst.name)} station, about ${t.walk} min. You've arrived.`}
+    :{type:'arrive',tag:'Arrive',main:`Get off at ${escHtml(off.name)}`,detail:'Exit the station — you\'ve arrived'});
+  return steps;
+}
+
+// ════════════════════════════════════════════════
+//  MAPS
+// ════════════════════════════════════════════════
+function tiles(map){
+  // Esri's muted light-grey canvas: keyless, and quiet enough to let the line colours lead.
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap contributors',maxZoom:16}).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,opacity:.8}).addTo(map);
+}
+
+// A two-point polyline shifted sideways by `offset` pixels, so lines sharing track
+// (Circle, District, Hammersmith & City, Metropolitan) sit side by side as on the Tube map.
+const OffsetLine=L.Polyline.extend({
+  _projectLatlngs(latlngs,result,bounds){
+    L.Polyline.prototype._projectLatlngs.call(this,latlngs,result,bounds);
+    const o=this.options.offset,r=result[result.length-1];
+    if(!o||!r||r.length!==2)return;
+    const dx=r[1].x-r[0].x,dy=r[1].y-r[0].y,len=Math.hypot(dx,dy)||1;
+    result[result.length-1]=r.map(p=>L.point(p.x-dy/len*o,p.y+dx/len*o));
+  }
+});
+
+// Each line's track segments, oriented the same way for every line sharing them.
+const SEGMENTS=(()=>{
+  const seg=new Map();
+  METRO.routes.forEach(r=>{for(let i=1;i<r.seq.length;i++){
+    const a=r.seq[i-1],b=r.seq[i],key=[a,b].sort().join('|');
+    if(!seg.has(key))seg.set(key,{a,b,lines:[]});
+    const s=seg.get(key);if(!s.lines.includes(r.line))s.lines.push(r.line);
+  }});
+  seg.forEach(s=>s.lines.sort((x,y)=>LINE_ORDER.indexOf(x)-LINE_ORDER.indexOf(y)));
+  return[...seg.values()];
+})();
+
+// Network layers per map, so a planned route can dim everything else.
+const NET={};
+function drawLines(map,key){
+  const layers=[],W=3.6;
+  const each=fn=>SEGMENTS.forEach(s=>s.lines.forEach((l,i)=>fn(s,l,(i-(s.lines.length-1)/2)*W)));
+  // White casing under each line keeps it crisp over the basemap.
+  each((s,l,off)=>layers.push(new OffsetLine([SM[s.a].p[l],SM[s.b].p[l]],{color:'#fff',weight:W+3,offset:off,lineCap:'round',interactive:false}).addTo(map)));
+  each((s,l,off)=>layers.push(new OffsetLine([SM[s.a].p[l],SM[s.b].p[l]],{color:LM[l].color,weight:W,offset:off,lineCap:'round',interactive:false}).addTo(map)));
+  NET[key]={lines:layers,stations:[]};
+}
+
+function stationPopup(s,withButton){
+  const links=(LINKED[s.id]||[]).map(x=>`${escHtml(SM[x.id].name)}${x.kind==='osi'?' (out-of-station)':''}`);
+  const ic=s.lines.length>1?`Interchange · ${s.lines.length} lines`:'';
+  const lk=links.length?`Connected to ${links.join(', ')}`:'';
+  return`<div class="pop-name">${escHtml(s.name)}</div><div class="pop-sub">${zoneText(s.z)}</div><div class="pop-chips">${symsOf(s,'')}</div>`+
+    (ic||lk?`<div class="pop-ic">${[ic,lk].filter(Boolean).join('<br>')}</div>`:'')+
+    (withButton?`<button class="pop-btn" onclick="planTo('${s.id}')">Directions to here</button>`:'');
+}
+
+function labelTier(s){return s.major?'t0':(s.isInterchange||s.terminal)?'t1':'t2';}
+
+function drawStations(map,key,labels){
+  METRO.stations.forEach(s=>{
+    const big=s.lines.length>1;
+    // At interchanges, a thin dark connector ties each line's platforms to the station centre.
+    if(big)s.lines.forEach(l=>{
+      const p=s.p[l];
+      if(haversine(...p,s.lat,s.lng)>0.04)NET[key].stations.push(L.polyline([p,[s.lat,s.lng]],{color:'#17140F',weight:2,opacity:.75,interactive:false}).addTo(map));
+    });
+    const at=big?[s.lat,s.lng]:s.p[s.lines[0]];
+    const m=L.circleMarker(at,{
+      radius:big?5:s.terminal?4.5:3.4,fillColor:'#fff',fillOpacity:1,
+      color:big||s.lines[0]==='N'?'#17140F':LM[s.lines[0]].color,weight:2,
+    }).addTo(map);
+    m.bindTooltip(escHtml(s.name),{direction:'top',offset:[0,-6],className:'stn-tip '+(labels?labelTier(s):''),permanent:!!labels});
+    m.bindPopup(stationPopup(s,labels));
+    NET[key].stations.push(m);
+  });
+}
+
+function setNetworkDim(key,dim){
+  const n=NET[key];if(!n)return;
+  n.lines.forEach(l=>l.setStyle({opacity:dim?(l.options.color==='#fff'?.6:.2):1}));
+  n.stations.forEach(m=>m.setStyle(m instanceof L.CircleMarker?{opacity:dim?.25:1,fillOpacity:dim?.4:1}:{opacity:dim?.15:.75}));
+}
+
+const NET_CENTER=[51.5074,-0.1278];
+function allBounds(){return METRO.stations.map(s=>[s.lat,s.lng]);}
+
+function initPlannerMap(){
+  if(S.plannerMap)return; // tab tapped twice before the first init ran
+  const m=L.map('main-map',{center:NET_CENTER,zoom:11,zoomControl:false,zoomSnap:.25});
+  L.control.zoom({position:'topright'}).addTo(m);
+  tiles(m);S.plannerMap=m;drawLines(m,'plan');drawStations(m,'plan');
+  requestAnimationFrame(()=>{
+    m.invalidateSize();
+    // A route planned in the meantime has already framed itself.
+    if(!S.routeLayers.length)m.fitBounds(allBounds(),{padding:[40,40]});
+    if(S.pendingRoute){S.pendingRoute();S.pendingRoute=null;}
+  });
+}
+
+function drawRoute(r,sLat,sLng){
+  const m=S.plannerMap;
+  m.invalidateSize();
+  S.routeLayers.forEach(l=>m.removeLayer(l));S.routeLayers=[];
+  setNetworkDim('plan',true);
+  const add=l=>{S.routeLayers.push(l.addTo(m));return l;};
+  const walkStyle={color:'#6A6156',weight:3,dashArray:'2 7',lineCap:'round',interactive:false};
+  const rides=r.legs.filter(l=>l.type==='ride');
+  const pts=[[sLat,sLng]];
+  // Walk from your location to the first platform.
+  add(L.polyline([[sLat,sLng],NODE[rides[0].nodes[0]].pt],walkStyle));
+  const legs=r.trailing?[...r.legs,r.trailing]:r.legs;
+  legs.forEach(leg=>{
+    if(leg.type==='xfer'){
+      if(NODE[leg.from].st!==NODE[leg.to].st)add(L.polyline([NODE[leg.from].pt,NODE[leg.to].pt],walkStyle));
+      return;
+    }
+    const lp=leg.nodes.map(id=>NODE[id].pt);pts.push(...lp);
+    add(L.polyline(lp,{color:'#fff',weight:11,lineCap:'round',lineJoin:'round',interactive:false}));
+    add(L.polyline(lp,{color:LM[leg.line].color,weight:6.5,lineCap:'round',lineJoin:'round',interactive:false}));
+  });
+  // Small stops along each ride, then labelled markers where you board, change and get off.
+  const keyStops=new Map();
+  rides.forEach((leg,li)=>{
+    leg.nodes.forEach((id,i)=>{
+      const n=NODE[id],end=i===0||i===leg.nodes.length-1;
+      if(end){if(!keyStops.has(n.st))keyStops.set(n.st,{pt:n.pt,first:li===0&&i===0});return;}
+      add(L.circleMarker(n.pt,{radius:3.2,fillColor:'#fff',fillOpacity:1,color:leg.line==='N'?'#17140F':LM[leg.line].color,weight:1.8}).bindTooltip(escHtml(SM[n.st].name),{direction:'top',offset:[0,-6],className:'stn-tip'}));
+    });
+  });
+  if(r.trailing){const n=NODE[r.trailing.to];keyStops.set(n.st,{pt:n.pt});pts.push(n.pt);}
+  keyStops.forEach(({pt,first},st)=>{
+    // Boarding label goes below so it doesn't collide with a nearby interchange label above.
+    add(L.circleMarker(pt,{radius:6,fillColor:'#fff',fillOpacity:1,color:'#17140F',weight:2.6})
+      .bindTooltip(escHtml(SM[st].name),{direction:first?'bottom':'top',offset:[0,first?8:-6],className:'stn-tip',permanent:true}));
+  });
+  add(L.marker([sLat,sLng],{icon:L.divIcon({html:'<div class="pin-start"></div>',className:'',iconSize:[22,22],iconAnchor:[11,11]}),zIndexOffset:1000})
+    .bindTooltip('You',{direction:'bottom',offset:[0,10],className:'stn-tip'}));
+  const pad=Math.round(Math.min(90,m.getSize().x*.12));
+  m.fitBounds(L.latLngBounds(pts),{padding:[pad+20,pad]});
+}
+
+function initMetroMap(){
+  if(S.metroMap)return;
+  // Zoom buttons go bottom-right so they don't sit on the legend card.
+  const m=L.map('metro-map-full',{center:NET_CENTER,zoom:11,zoomControl:false,zoomSnap:.25});
+  L.control.zoom({position:'bottomright'}).addTo(m);
+  tiles(m);S.metroMap=m;drawLines(m,'net');drawStations(m,'net',true);
+  // Show more station names as you zoom in.
+  const tier=()=>{const z=m.getZoom(),c=m.getContainer();c.classList.toggle('lbl-t1',z>=13);c.classList.toggle('lbl-t2',z>=14.25);};
+  m.on('zoomend',tier);
+  // The page has only just become visible, so measure the container before fitting.
+  // Wide screens show the whole network, clear of the legend card on the left;
+  // phones open on central London, where the lines are densest.
+  const wide=innerWidth>900;
+  const fit=wide?allBounds():METRO.stations.filter(s=>haversine(s.lat,s.lng,51.5080,-0.1247)<5).map(s=>[s.lat,s.lng]);
+  requestAnimationFrame(()=>{m.invalidateSize();m.fitBounds(fit,{paddingTopLeft:[wide?310:16,wide?40:70],paddingBottomRight:[wide?40:16,40]});tier();});
+}
+
+function planTo(id){
+  S.metroMap?.closePopup();
+  showPage('planner');
+  quickDest(id);
+}
+
+// ── KEYBOARD NAVIGATION FOR DROPDOWNS ──
+// ↑/↓ moves, Enter picks, Esc closes. No animation on these — they're used rapidly.
+document.addEventListener('keydown',e=>{
+  const inp=e.target;
+  if(!inp.matches||!inp.matches('.stn-input,.address-input'))return;
+  const ac=inp.parentElement.querySelector('.autocomplete');
+  if(!ac||ac.style.display!=='block')return;
+  const items=[...ac.querySelectorAll('.ac-item')];if(!items.length)return;
+  let i=items.findIndex(x=>x.classList.contains('kb'));
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();
+    items[i]?.classList.remove('kb');
+    i=e.key==='ArrowDown'?(i+1)%items.length:(i<=0?items.length-1:i-1);
+    items[i].classList.add('kb');items[i].scrollIntoView({block:'nearest'});
+  }else if(e.key==='Enter'){
+    e.preventDefault();(items[Math.max(i,0)]).click();
+  }else if(e.key==='Escape'){
+    ac.style.display='none';
+  }
+});
+
+// ── HOME HERO: draw the real network from station coordinates ──
+function renderHero(){
+  const svg=document.getElementById('hero-net');if(!svg)return;
+  // Frame the hero on Zones 1–6; the Metropolitan line's far end would shrink everything else.
+  const st=METRO.stations.filter(s=>zRange(s.z)[0]<=6);
+  const lats=st.map(s=>s.lat),lngs=st.map(s=>s.lng);
+  const minLat=Math.min(...lats),maxLat=Math.max(...lats),minLng=Math.min(...lngs),maxLng=Math.max(...lngs);
+  // Equirectangular is fine at city scale; correct longitude by cos(lat).
+  const k=Math.cos((minLat+maxLat)/2*Math.PI/180);
+  const W=(maxLng-minLng)*k,H=maxLat-minLat,pad=.01;
+  svg.setAttribute('viewBox',`${-pad} ${-pad} ${W+pad*2} ${H+pad*2}`);
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  const X=p=>((p[1]-minLng)*k).toFixed(5),Y=p=>(maxLat-p[0]).toFixed(5);
+  const sw=Math.max(W,H)/260;
+  const col=onDark;
+  let html='';
+  METRO.routes.filter(r=>r.night!==2).forEach((r,ri)=>{
+    const d=r.seq.map((sid,i)=>`${i?'L':'M'}${X(SM[sid].p[r.line])} ${Y(SM[sid].p[r.line])}`).join('');
+    html+=`<path class="net-glow" d="${d}" stroke="${col(r.line)}" style="stroke-width:${sw*4}"/>`;
+    html+=`<path class="net-line" d="${d}" stroke="${col(r.line)}" pathLength="1" style="--len:1;stroke-width:${sw};animation-delay:${ri*60}ms"/>`;
+  });
+  METRO.stations.forEach((s,i)=>{
+    const big=s.lines.length>1;
+    html+=big
+      ?`<circle class="net-ic" cx="${X([s.lat,s.lng])}" cy="${Y([s.lat,s.lng])}" r="${sw*1.5}" style="stroke-width:${sw*.6};animation-delay:${1500+i*3}ms"/>`
+      :`<circle class="net-stn" cx="${X(s.p[s.lines[0]])}" cy="${Y(s.p[s.lines[0]])}" r="${sw*.7}" stroke="${col(s.lines[0])}" style="stroke-width:${sw*.45};animation-delay:${1000+i*4}ms"/>`;
+  });
+  svg.innerHTML=html;
+}
+
+const lineCount=id=>METRO.stations.filter(s=>s.p[id]).length;
+
+function renderStatic(){
+  const st=METRO.stations,F=METRO.fares;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  set('hs-stations',st.length);
+  set('hs-lines',METRO.lines.length);
+  set('hs-ic',st.filter(s=>s.isInterchange).length);
+  set('hs-fare',gbp(F.z1[1][0]));
+  document.getElementById('home-legend').innerHTML=METRO.lines.map(l=>sym(l.id)).join('');
+  document.getElementById('planner-legend').innerHTML=METRO.lines.map(l=>`<div class="legend-item">${sym(l.id,'sm')}${l.name}</div>`).join('');
+  const group=ids=>METRO.lines.filter(l=>ids(l.id)).map(l=>`<div class="legend-item">${sym(l.id,'sm')}${l.name}<span class="n">${lineCount(l.id)}</span></div>`).join('');
+  document.getElementById('net-legend').innerHTML=`<div class="legend-sub">London Underground</div><div class="legend-list">${group(id=>id!=='E')}</div><div class="legend-sub">Rail</div><div class="legend-list">${group(id=>id==='E')}</div>`;
+  if(innerWidth<=900)document.getElementById('net-overlay').removeAttribute('open');
+  const cell=(lbl,f)=>`<div>${lbl}<strong>${gbp(f[0])}<small>off-peak ${gbp(f[1])}</small></strong></div>`;
+  const fill=n=>'<div></div>'.repeat((3-n%3)%3); // fill the last row
+  const z1=Object.keys(F.z1).filter(h=>h<=6).map(h=>cell(zonesLabel(1,+h),F.z1[h]));
+  const nz=[2,3,4,5,6].map(h=>cell(`${h-1} zone${h>2?'s':''}`,F.nz['2-'+h]));
+  const caps=[2,3,4,5,6].map(h=>`<div>${zonesLabel(1,h)}<strong>${gbp(F.cap[h])}</strong></div>`);
+  document.getElementById('fare-tables').innerHTML=
+    `<p class="fare-op">Journeys including Zone 1 · peak</p><div class="fare-grid">${z1.join('')}${fill(z1.length)}</div>`+
+    `<p class="fare-op">Journeys avoiding Zone 1 · by zones crossed (Zones 2–6)</p><div class="fare-grid">${nz.join('')}${fill(nz.length)}</div>`+
+    `<p class="fare-op">Daily cap · pay as you go</p><div class="fare-grid">${caps.join('')}${fill(caps.length)}</div>`;
+  const QUICK=['kings_cross_st_pancras','oxford_circus','westminster','london_bridge','tower_hill','south_kensington','camden_town','heathrow_terminals_2_and_3'];
+  document.getElementById('quick-chips').innerHTML=QUICK.filter(id=>SM[id]).map(id=>{
+    const s=SM[id];
+    return`<button onclick="quickDest('${id}')">${s.lines.slice(0,3).map(l=>`<i class="dot" style="--c:${LM[l].color}"></i>`).join('')}${escHtml(s.name)}</button>`;
+  }).join('');
+}
+
+function quickDest(id){
+  selectStn(id,'plan','dest');
+  const ok=S.srcLat.plan&&S.srcLng.plan;
+  if(ok)planRoute();
+  else{
+    // No start yet: nudge towards the From field instead of erroring.
+    const inp=S.mode.plan==='addr'?document.getElementById('plan-addr-input'):document.getElementById('plan-gps-action-btn');
+    inp?.focus();
+  }
+}
+
+// Header badge: is the Tube running right now, in London?
+function renderLive(){
+  const{state}=serviceMode(),t=`${fmtHM(londonParts())} ${tzAbbr()}`;
+  const badge=document.getElementById('live-badge');
+  badge.classList.toggle('night',state==='closed'||state==='night');
+  document.getElementById('live-text').textContent=state==='closed'?`Closed overnight · ${t}`:state==='night'?`Night Tube · ${t}`:`Trains running · ${t}`;
+}
+
+renderHero();renderStatic();renderLive();setInterval(renderLive,30000);
+</script>
+</body>
+</html>
